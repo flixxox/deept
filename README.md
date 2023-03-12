@@ -1,4 +1,4 @@
-# PytorchMT #
+# DeepT #
 
 This repository is used to train and search NMT models created with PyTorch.
 It allows to easily define the model, and if needed optimizers and scores, using native PyTorch API.
@@ -67,11 +67,11 @@ HOROVOD_WITH_PYTORCH=1 pip3 install --no-cache-dir horovod
 ## Run ##
 
 To this point, we provide the two main functionalities for machine translation models: training and search.
-Both have their entry point in pytorchmt/train.py and pytorchmt/search.py.
+Both have their entry point in deept/train.py and deept/search.py.
 Since we use argparse you can view a most up-to-date version of the parameters with
 ```bash
-pytorchmt/train.py --help
-pytorchmt/search.py --help
+deept/train.py --help
+deept/search.py --help
 ```
 
 ### Train ###

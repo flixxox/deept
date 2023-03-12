@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "pytorchmt"
+name = "deept"
 version = "0.1.0"
 description = ""
 authors = ["Felix <felix.schmidt3@rwth-aachen.de>"]

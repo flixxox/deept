@@ -4,14 +4,14 @@ import torch
 import horovod.torch as hvd
 
 from models import create_model_from_config
-from pytorchmt.util.config import Config
-from pytorchmt.util.data import Vocabulary, Dataset
-from pytorchmt.util.checkpoint_manager import CheckpointManager
+from deept.util.config import Config
+from deept.util.data import Vocabulary, Dataset
+from deept.util.checkpoint_manager import CheckpointManager
 
 # ======== CONFIG
 
-config_file = '/home/fschmidt/code/pytorchmt/config/transformer.wmt.en-de.yaml'
-checkpoint_path = '/nas/models/neurosys/output/pytorchmt/transformer.wmt.en-de/best-so-far/output/checkpoints/ckpt-121.pt'
+config_file = '/home/fschmidt/code/deept/config/transformer.wmt.en-de.yaml'
+checkpoint_path = '/nas/models/neurosys/output/deept/transformer.wmt.en-de/best-so-far/output/checkpoints/ckpt-121.pt'
 
 # ======== CREATION
 

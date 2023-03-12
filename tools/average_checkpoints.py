@@ -6,10 +6,10 @@ import numpy as np
 import horovod.torch as hvd
 
 from models import create_model_from_config
-from pytorchmt.util.config import Config
-from pytorchmt.util.data import Vocabulary
-from pytorchmt.util.setup import setup_torch_from_config
-from pytorchmt.util.checkpoint_manager import CheckpointManager
+from deept.util.config import Config
+from deept.util.data import Vocabulary
+from deept.util.setup import setup_torch_from_config
+from deept.util.checkpoint_manager import CheckpointManager
 
 # ======== CONFIG
 
@@ -19,7 +19,7 @@ task = 'iwslt.de-en'
 train_dir = '/nas/models/neurosys/output/posnet/posnet.iwslt.de-en/rPosNet-glu-noNormalize'
 checkpoints_to_average = np.arange(31, 61)
 
-config_file = f'{train_dir}/pytorchmt-setups/{topic}/configs/{model}.{task}.yaml'
+config_file = f'{train_dir}/deept-setups/{topic}/configs/{model}.{task}.yaml'
 checkpoint_dir = f'{train_dir}/output/checkpoints'
 
 # ======== CREATION

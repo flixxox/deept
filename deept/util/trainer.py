@@ -3,10 +3,10 @@ import math
 import torch
 import horovod.torch as hvd
 
-from pytorchmt.model.scores import Score
-from pytorchmt.util.globals import Globals
-from pytorchmt.util.timer import Timer, ContextTimer
-from pytorchmt.util.debug import my_print, print_summary, print_memory_usage
+from deept.model.scores import Score
+from deept.util.globals import Globals
+from deept.util.timer import Timer, ContextTimer
+from deept.util.debug import my_print, print_summary, print_memory_usage
 
 
 class Trainer:

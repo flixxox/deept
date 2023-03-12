@@ -3,8 +3,8 @@ import math
 import torch
 import torch.nn as nn
 
-from pytorchmt.util.timer import Timer
-from pytorchmt.util.globals import Globals
+from deept.util.timer import Timer
+from deept.util.globals import Globals
 
 
 class MultiHeadAttention(nn.Module):

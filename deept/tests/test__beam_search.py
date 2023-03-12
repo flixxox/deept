@@ -4,11 +4,11 @@ import numpy as np
 import torch
 import horovod.torch as hvd
 
-from pytorchmt.util.config import Config
-from pytorchmt.util.debug import my_print
-from pytorchmt.util.data import Vocabulary
-from pytorchmt.model.state import DynamicState
-from pytorchmt.search.beam_search import BeamSearch
+from deept.util.config import Config
+from deept.util.debug import my_print
+from deept.util.data import Vocabulary
+from deept.model.state import DynamicState
+from deept.search.beam_search import BeamSearch
 
 class TestBeamSearch(unittest.TestCase):
 

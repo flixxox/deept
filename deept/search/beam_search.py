@@ -1,10 +1,10 @@
 
 import torch
 
-from pytorchmt.util.debug import my_print
-from pytorchmt.util.globals import Globals
-from pytorchmt.model.state import StaticState, DynamicState
-from pytorchmt.search.search_algorithm import SearchAlgorithm
+from deept.util.debug import my_print
+from deept.util.globals import Globals
+from deept.model.state import StaticState, DynamicState
+from deept.search.search_algorithm import SearchAlgorithm
 
 
 class BeamSearch(SearchAlgorithm):

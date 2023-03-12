@@ -1,5 +1,5 @@
 
-from pytorchmt.search.beam_search import BeamSearch
+from deept.search.beam_search import BeamSearch
 
 class SearchAlgorithmSelector:
 

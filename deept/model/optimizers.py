@@ -6,8 +6,8 @@ import torch
 import torch.nn as nn
 import horovod.torch as hvd
 
-from pytorchmt.util.debug import my_print
-from pytorchmt.util.globals import Globals
+from deept.util.debug import my_print
+from deept.util.globals import Globals
 
 
 class Optimizer(nn.Module):

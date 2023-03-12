@@ -7,14 +7,14 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from models import create_model_from_config
-from pytorchmt.util.config import Config
-from pytorchmt.util.data import Vocabulary, Dataset
-from pytorchmt.util.setup import setup_torch_from_config
-from pytorchmt.util.checkpoint_manager import CheckpointManager
+from deept.util.config import Config
+from deept.util.data import Vocabulary, Dataset
+from deept.util.setup import setup_torch_from_config
+from deept.util.checkpoint_manager import CheckpointManager
 
 # ======== CONFIG
 
-config_file = '/home/fschmidt/code/pytorchmt-setups/posnet/configs/gaussianattnBase.wmt.en-de.yaml'
+config_file = '/home/fschmidt/code/deept-setups/posnet/configs/gaussianattnBase.wmt.en-de.yaml'
 checkpoint_path = '/nas/models/neurosys/output/posnet/gaussianattnBase.wmt.en-de/enc-dec-std1/output/checkpoints/ckpt-avg-last.pt'
 
 # ======== CREATION

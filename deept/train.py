@@ -6,15 +6,15 @@ import torch
 import horovod.torch as hvd
 
 from models import create_model_from_config
-from pytorchmt.util.config import Config
-from pytorchmt.model.scores import Score
-from pytorchmt.util.globals import Globals
-from pytorchmt.util.trainer import Trainer
-from pytorchmt.model.optimizers import Optimizer
-from pytorchmt.util.setup import setup_torch_from_config
-from pytorchmt.util.debug import my_print, print_memory_usage
-from pytorchmt.util.checkpoint_manager import CheckpointManager
-from pytorchmt.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
+from deept.util.config import Config
+from deept.model.scores import Score
+from deept.util.globals import Globals
+from deept.util.trainer import Trainer
+from deept.model.optimizers import Optimizer
+from deept.util.setup import setup_torch_from_config
+from deept.util.debug import my_print, print_memory_usage
+from deept.util.checkpoint_manager import CheckpointManager
+from deept.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
 
 
 def parse_cli_arguments():

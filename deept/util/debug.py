@@ -21,7 +21,7 @@ def print_memory_usage():
     import torch
     import psutil
     import horovod.torch as hvd
-    from pytorchmt.util.globals import Globals
+    from deept.util.globals import Globals
 
     if Globals.is_gpu():
         current_gpu_memory = torch.cuda.memory_allocated(device=Globals.get_device())

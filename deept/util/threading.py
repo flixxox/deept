@@ -1,6 +1,6 @@
 import threading as th
 
-from pytorchmt.util.debug import my_print
+from deept.util.debug import my_print
 
 class SharedMemory:
 

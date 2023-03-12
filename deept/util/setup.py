@@ -2,8 +2,8 @@
 import torch
 import horovod.torch as hvd
 
-from pytorchmt.util.debug import my_print
-from pytorchmt.util.globals import Globals
+from deept.util.debug import my_print
+from deept.util.globals import Globals
 
 
 def setup_torch_from_config(config):

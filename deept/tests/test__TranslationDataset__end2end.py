@@ -4,10 +4,10 @@ import numpy as np
 import torch
 import horovod.torch as hvd
 
-from pytorchmt.util.config import Config
-from pytorchmt.util.debug import my_print
-from pytorchmt.util.globals import Globals
-from pytorchmt.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
+from deept.util.config import Config
+from deept.util.debug import my_print
+from deept.util.globals import Globals
+from deept.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
 
 class TestData(unittest.TestCase):
 

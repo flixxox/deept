@@ -4,9 +4,9 @@ import time
 import torch
 import torch.nn as nn
 
-from pytorchmt.util.globals import Globals
-from pytorchmt.model.state import StaticState, DynamicState
-from pytorchmt.util.debug import my_print, print_memory_usage
+from deept.util.globals import Globals
+from deept.model.state import StaticState, DynamicState
+from deept.util.debug import my_print, print_memory_usage
 
 class SearchAlgorithm(nn.Module):
 

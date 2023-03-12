@@ -4,14 +4,14 @@ import _setup_env
 import torch
 import horovod.torch as hvd
 
-from pytorchmt.util.config import Config
-from pytorchmt.util.setup import setup_torch_from_config
-from pytorchmt.util.checkpoint_manager import CheckpointManager
-from pytorchmt.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
+from deept.util.config import Config
+from deept.util.setup import setup_torch_from_config
+from deept.util.checkpoint_manager import CheckpointManager
+from deept.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
 
 # ======== CONFIG
 
-config_file = '/home/fschmidt/code/pytorchmt-setups/posnet/configs/relposatt.iwslt.de-en.yaml'
+config_file = '/home/fschmidt/code/deept-setups/posnet/configs/relposatt.iwslt.de-en.yaml'
 
 # ======== CREATION
 

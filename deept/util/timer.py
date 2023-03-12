@@ -4,8 +4,8 @@ import time
 import torch
 import torch.nn as nn
 
-from pytorchmt.util.debug import my_print
-from pytorchmt.util.globals import Globals
+from deept.util.debug import my_print
+from deept.util.globals import Globals
 
 
 class Timer(nn.Module):

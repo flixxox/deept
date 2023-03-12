@@ -3,8 +3,8 @@ import unittest
 import torch
 import numpy as np
 
-from pytorchmt.util.globals import Globals
-from pytorchmt.model.state import DynamicState
+from deept.util.globals import Globals
+from deept.model.state import DynamicState
 
 class TestState(unittest.TestCase):
 

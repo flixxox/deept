@@ -6,13 +6,13 @@ import torch
 import horovod.torch as hvd
 
 from models import create_model_from_config
-from pytorchmt.util.config import Config
-from pytorchmt.util.globals import Globals
-from pytorchmt.util.setup import setup_torch_from_config
-from pytorchmt.util.checkpoint_manager import CheckpointManager
-from pytorchmt.util.debug import my_print, get_number_of_trainable_variables
-from pytorchmt.search.search_algorithm_selector import SearchAlgorithmSelector
-from pytorchmt.util.data import Vocabulary, Dataset, BatchGenerator, LinearBatchAlgorithm
+from deept.util.config import Config
+from deept.util.globals import Globals
+from deept.util.setup import setup_torch_from_config
+from deept.util.checkpoint_manager import CheckpointManager
+from deept.util.debug import my_print, get_number_of_trainable_variables
+from deept.search.search_algorithm_selector import SearchAlgorithmSelector
+from deept.util.data import Vocabulary, Dataset, BatchGenerator, LinearBatchAlgorithm
 
 
 def parse_cli_arguments():
