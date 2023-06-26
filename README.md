@@ -1,4 +1,4 @@
-# DeepT #
+# deept #
 
 This repository is used to train and search NMT models created with PyTorch.
 It allows to easily define the model, and if needed optimizers and scores, using native PyTorch API.
@@ -33,7 +33,7 @@ curl -sSL https://install.python-poetry.org | POETRY_HOME=YOUR_POETRY_DIR python
 
 Add poetry to your PATH variable:
 ```bash
-export YOUR_POETRY_DIR:$PATH
+export PATH=YOUR_POETRY_DIR/bin:$PATH
 ```
 
 ### Install Python Dependencies except Horovod ####
@@ -42,7 +42,6 @@ With the following steps poetry will create a virtualenv, by default in ~/.cache
 From the root folder call:
 ```bash
 poetry shell
-source /home/fschmidt/code/workflowManager/bash/setup_cuda.bash
 poetry install
 ```
 
@@ -51,17 +50,7 @@ If you manually want to select the virtualenv, run the following commands with y
 python3 -m venv YOUR_VENV_FOLDER
 source YOUR_VENV_FOLDER/bin/activate
 pip3 install --upgrade pip3
-source /home/fschmidt/code/workflowManager/bash/setup_cuda.bash
 poetry install
-```
-
-### Install Horovod ####
-
-Enter the virtualenv created in the step before and run the following commands. 
-
-```bash
-source /home/fschmidt/code/workflowManager/bash/setup_cuda.bash
-HOROVOD_WITH_PYTORCH=1 pip3 install --no-cache-dir horovod
 ```
 
 ## Run ##
@@ -111,7 +100,3 @@ optional arguments:
   --number-of-gpus NUMBER_OF_GPUS
                         This is usually specified in the config but can also be overwritten from the cli. However, in search this can only be 0 or 1. We do not support multi-gpu decoding. If you set it to >1 we will set it back to 1 so that you dont need to modify the config in search.
 ```
-
-## Who do I talk to? ##
-
-Felix Schmidt or Mattia Di Gangi
