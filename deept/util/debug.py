@@ -1,7 +1,9 @@
 
-def my_print(*args, **kwargs):
+from deept.util.globals import Globals
 
-    print(*args, flush=True, **kwargs)
+def my_print(*args, **kwargs):
+    if Globals.rank() == 0 or Globals.rank() == None:
+        print(*args, flush=True, **kwargs)
 
 def get_number_of_trainable_variables(model):
     sum = 0

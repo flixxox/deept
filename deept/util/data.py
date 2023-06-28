@@ -161,10 +161,10 @@ class Dataset:
 
     def __init__(self):
 
-        self.corpus_size        = 0
+        self.corpus_size = 0
         self.worker_corpus_size = 0
-        self.data               = [] # [data] Only used when the dataset is loaded into memory
-        self.data_ptrs          = [[]] # [[(data_ptr, size)]]
+        self.data = [] # [data] Only used when the dataset is loaded into memory
+        self.data_ptrs = [[]] # [[(data_ptr, size)]]
 
     @staticmethod
     def create_dataset_from_config(config, name, src_path, tgt_path, vocab_src, vocab_tgt, epoch_split=1):
@@ -181,7 +181,7 @@ class Dataset:
                 epoch_split = epoch_split
             )
         else:
-            assert True == False, f'Unrecognized dataset option {config["dataset"]}'
+            raise ValueError(f'Unrecognized dataset option {config["dataset"]}')
 
         dataset.load_data_ptrs()
 
@@ -189,12 +189,15 @@ class Dataset:
             dataset.apply_epoch_split()
 
         assert sum([len(x) for x in dataset.data_ptrs]) == dataset.corpus_size
-        assert len(dataset.data_ptrs)                   == dataset.epoch_split
+        assert len(dataset.data_ptrs) == dataset.epoch_split
 
         if Globals.get_number_of_workers() > 1:
             dataset.assign_to_worker(Globals.rank())
 
-        assert dist.all_reduce(dataset.worker_corpus_size, op=dist.ReduceOp.SUM) == dataset.corpus_size
+        actual_corpus_size = torch.Tensor([dataset.worker_corpus_size]).to(Globals.rank())
+        dist.all_reduce(actual_corpus_size, op=dist.ReduceOp.SUM)
+
+        assert torch.eq(actual_corpus_size, torch.Tensor([dataset.corpus_size]).to(Globals.rank()))
 
         if dataset.in_memory:
             dataset.load_data_to_memory()
@@ -294,19 +297,14 @@ class TranslationDataset(Dataset):
         size = len(tgt)+1
         
         if len(src)+2 <= self.maxI and size <= self.maxI:
-
             keep = True
 
         else:
-
             if not Globals.is_training():
-                
                 src = self.vocab_src.tokenize([Vocabulary.UNK for _ in range(5)])
                 tgt = self.vocab_tgt.tokenize([Vocabulary.UNK for _ in range(5)])
                 keep = True
-
             else:
-
                 keep = False
         
         return (src, tgt), keep, size

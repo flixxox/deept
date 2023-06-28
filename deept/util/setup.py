@@ -6,7 +6,7 @@ from deept.util.debug import my_print
 from deept.util.globals import Globals
 
 
-def check_devices(config):
+def check_devices(config, train=True):
     """ 
     This function is run before processes are spawn.
     It checks number_of_gpus and sets Globals.number_of_workers.
@@ -21,24 +21,34 @@ def check_devices(config):
 
     assert config['number_of_gpus'] <= num_gpus_avail, f'Not enough GPUs available! Avail: {num_gpus_avail}, Requested {config["number_of_gpus"]}'
 
-    if not Globals.is_training(): # We do not support multi-gpu for search
+    if not train: # We do not support multi-gpu for search
         config['number_of_gpus'] = min(1, config['number_of_gpus'])
 
-    Globals.set_number_of_workers(max(1, config['number_of_gpus']))
+def setup(config, rank, world_size, train=True):
+
+    setup_globals(config, rank, world_size, train)
+    setup_torch(config)
+    if config['number_of_gpus'] > 1:
+        setup_ddp(config)
+
+def setup_globals(config, rank, world_size, train):
+
+    Globals.set_rank(rank)
+    Globals.set_number_of_workers(world_size)
+    Globals.set_train_flag(train)
+    Globals.set_time_flag(False)
+    Globals.set_global_seed(config['seed', 80420])
+    if config['number_of_gpus'] < 1:
+        my_print('Limiting to CPU!')
+        Globals.set_cpu()
+        Globals.set_device('cpu')
+    else:
+        Globals.set_device(f'cuda:{Globals.rank()}')
 
 def setup_torch(config):
 
     if config['deterministic', False]:
         torch.use_deterministic_algorithms(True)
-
-    if Globals.get_number_of_workers() <= 0:
-        my_print('Limiting to CPU!')
-        Globals.set_cpu()
-        Globals.set_device('cpu')
-
-    else:
-
-        setup_ddp(config)
 
 def setup_ddp(config):
 
@@ -49,8 +59,6 @@ def setup_ddp(config):
     config['update_freq'] = config['update_freq'] // Globals.get_number_of_workers()
 
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')
-
-    Globals.set_device(f'cuda:{Globals.rank()}')
 
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'

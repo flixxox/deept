@@ -10,7 +10,7 @@ from deept.model.scores import Score
 from deept.util.globals import Globals
 from deept.util.trainer import Trainer
 from deept.model.optimizers import Optimizer
-from deept.util.setup import check_devices, setup_torch
+from deept.util.setup import check_devices, setup
 from deept.util.debug import my_print, print_memory_usage
 from deept.util.checkpoint_manager import CheckpointManager
 from deept.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
@@ -37,11 +37,25 @@ def parse_cli_arguments():
 
     return vars(args)
 
-def train(rank, config):
+def start(config):
 
-    Globals.set_rank(rank)
+    check_devices(config)
 
-    setup_torch(config)
+    world_size = max(1, config['number_of_gpus'])
+
+    if world_size > 1:
+        import torch.multiprocessing as mp
+        mp.spawn(
+            train,
+            args=(config, world_size, ),
+            nprocs=world_size
+        )
+    else:
+        train(0, config)
+
+def train(rank, config, world_size):
+
+    setup(config, rank, world_size, train=True)
 
     torch.manual_seed(Globals.get_global_seed())
 
@@ -101,7 +115,8 @@ def train(rank, config):
 
     my_print('Done!')
 
-def start():
+
+if __name__ == '__main__':
 
     my_print(''.center(40, '-'))
     my_print(' Hi! '.center(40, '-'))
@@ -111,26 +126,7 @@ def start():
     args = parse_cli_arguments()
 
     config = Config.parse_config(args)
-    Globals.set_train_flag(True)
-    Globals.set_time_flag(False)
-    Globals.set_global_seed(config['seed', 80420])
 
     config.print_config()
 
-    check_devices(config)
-
-    if Globals.get_number_of_workers() > 1:
-        import torch.multiprocessing as mp
-
-        mp.spawn(
-            main,
-            args=(config),
-            nprocs=Globals.get_number_of_workers()
-        )
-    else:
-        train(0, config)
-
-
-if __name__ == '__main__':
-
-    start()
+    start(config)
