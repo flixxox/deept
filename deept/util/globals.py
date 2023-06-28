@@ -8,6 +8,7 @@ class Globals:
     __GPU       = True
     __DEVICE    = None
     __SEED      = None
+    __RANK      = None
 
     @staticmethod
     def set_train_flag(flag):
@@ -67,5 +68,12 @@ class Globals:
     def increase_global_seed():
         Globals.__SEED += 1
 
+    @staticmethod
+    def set_rank(rank):
+        if Globals.__RANK is None:
+            Globals.__RANK = rank
     
+    @staticmethod
+    def rank():
+        return Globals.__RANK
 

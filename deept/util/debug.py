@@ -1,10 +1,7 @@
 
 def my_print(*args, **kwargs):
 
-    import horovod.torch as hvd
-
-    if hvd.rank() == 0:
-        print(*args, flush=True, **kwargs)
+    print(*args, flush=True, **kwargs)
 
 def get_number_of_trainable_variables(model):
     sum = 0
@@ -20,7 +17,6 @@ def print_memory_usage():
     from resource import getrusage, RUSAGE_SELF
     import torch
     import psutil
-    import horovod.torch as hvd
     from deept.util.globals import Globals
 
     if Globals.is_gpu():

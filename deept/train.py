@@ -3,7 +3,6 @@ import argparse
 from os.path import join
 
 import torch
-import horovod.torch as hvd
 
 from models import create_model_from_config
 from deept.util.config import Config
@@ -11,7 +10,7 @@ from deept.model.scores import Score
 from deept.util.globals import Globals
 from deept.util.trainer import Trainer
 from deept.model.optimizers import Optimizer
-from deept.util.setup import setup_torch_from_config
+from deept.util.setup import check_devices, setup_torch
 from deept.util.debug import my_print, print_memory_usage
 from deept.util.checkpoint_manager import CheckpointManager
 from deept.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
@@ -38,9 +37,11 @@ def parse_cli_arguments():
 
     return vars(args)
 
-def train(config):
+def train(rank, config):
 
-    setup_torch_from_config(config)
+    Globals.set_rank(rank)
+
+    setup_torch(config)
 
     torch.manual_seed(Globals.get_global_seed())
 
@@ -102,8 +103,6 @@ def train(config):
 
 def start():
 
-    hvd.init()
-
     my_print(''.center(40, '-'))
     my_print(' Hi! '.center(40, '-'))
     my_print(' Script: train.py '.center(40, '-'))
@@ -118,7 +117,18 @@ def start():
 
     config.print_config()
 
-    train(config)
+    check_devices(config)
+
+    if Globals.get_number_of_workers() > 1:
+        import torch.multiprocessing as mp
+
+        mp.spawn(
+            main,
+            args=(config),
+            nprocs=Globals.get_number_of_workers()
+        )
+    else:
+        train(0, config)
 
 
 if __name__ == '__main__':

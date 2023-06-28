@@ -4,7 +4,6 @@ from os.path import join, isdir
 
 import torch
 import torch.nn as nn
-import horovod.torch as hvd
 
 from deept.util.debug import my_print
 from deept.util.globals import Globals

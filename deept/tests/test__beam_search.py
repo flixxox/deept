@@ -2,7 +2,6 @@ import unittest
 
 import numpy as np
 import torch
-import horovod.torch as hvd
 
 from deept.util.config import Config
 from deept.util.debug import my_print

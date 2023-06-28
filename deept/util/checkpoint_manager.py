@@ -3,7 +3,6 @@ from os import mkdir, listdir
 from os.path import isdir, isfile, join
 
 import torch
-import horovod.torch as hvd
 
 from deept.util.debug import my_print
 from deept.util.globals import Globals

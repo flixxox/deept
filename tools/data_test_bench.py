@@ -2,7 +2,6 @@ import sre_compile
 import _setup_env
 
 import torch
-import horovod.torch as hvd
 
 from deept.util.config import Config
 from deept.util.setup import setup_torch_from_config

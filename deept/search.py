@@ -3,7 +3,6 @@ import argparse
 from os.path import join
 
 import torch
-import horovod.torch as hvd
 
 from models import create_model_from_config
 from deept.util.config import Config

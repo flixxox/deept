@@ -5,7 +5,6 @@ from os.path import join, isdir
 
 import torch
 import torch.nn as nn
-import horovod.torch as hvd
 
 
 class Score(nn.Module):

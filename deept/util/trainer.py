@@ -1,7 +1,6 @@
 import math
 
 import torch
-import horovod.torch as hvd
 
 from deept.model.scores import Score
 from deept.util.globals import Globals

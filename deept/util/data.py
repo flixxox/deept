@@ -4,7 +4,7 @@ import pickle
 
 import torch
 from numpy import dtype
-import horovod.torch as hvd
+import torch.distributed as dist
 from numpy.random import RandomState
 
 from deept.util.debug import my_print
@@ -171,13 +171,13 @@ class Dataset:
 
         if config['dataset'] == 'TranslationDataset':
             dataset = TranslationDataset(
-                vocab_src   = vocab_src, 
-                vocab_tgt   = vocab_tgt,
-                src_path    = src_path,
-                tgt_path    = tgt_path,
-                name        = name,
-                maxI        = config['max_sentence_length'],
-                in_memory   = config['load_datset_in_memory'],
+                vocab_src = vocab_src, 
+                vocab_tgt = vocab_tgt,
+                src_path = src_path,
+                tgt_path = tgt_path,
+                name = name,
+                maxI = config['max_sentence_length'],
+                in_memory = config['load_datset_in_memory'],
                 epoch_split = epoch_split
             )
         else:
@@ -192,9 +192,9 @@ class Dataset:
         assert len(dataset.data_ptrs)                   == dataset.epoch_split
 
         if Globals.get_number_of_workers() > 1:
-            dataset.assign_to_worker(hvd.rank())
+            dataset.assign_to_worker(Globals.rank())
 
-        assert sum(hvd.allgather_object(dataset.worker_corpus_size, name='allgather_worker_corpus_size')) == dataset.corpus_size
+        assert dist.all_reduce(dataset.worker_corpus_size, op=dist.ReduceOp.SUM) == dataset.corpus_size
 
         if dataset.in_memory:
             dataset.load_data_to_memory()
@@ -228,7 +228,7 @@ class Dataset:
         
         self.__sort_by_size()
 
-        workers         = Globals.get_number_of_workers()
+        workers = Globals.get_number_of_workers()
         kept_data_ptrs  = []
 
         for i in range(self.epoch_split):
@@ -236,13 +236,10 @@ class Dataset:
             kept_data_ptrs.append([])
 
             for j in range(len(self.data_ptrs[i])):
-
                 if j % workers == worker_rank:
-
                     kept_data_ptrs[i].append(self.data_ptrs[i][j])
 
         self.data_ptrs = kept_data_ptrs
-
         self.worker_corpus_size = sum(len(epoch_split) for epoch_split in self.data_ptrs)
 
         print(f'Worker {worker_rank} is working on {self.worker_corpus_size} sentences for dataset {self.name}', flush=True)

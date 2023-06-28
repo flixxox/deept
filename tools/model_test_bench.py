@@ -1,7 +1,6 @@
 import _setup_env
 
 import torch
-import horovod.torch as hvd
 
 from models import create_model_from_config
 from deept.util.config import Config
@@ -14,8 +13,6 @@ config_file = '/home/fschmidt/code/deept/config/transformer.wmt.en-de.yaml'
 checkpoint_path = '/nas/models/neurosys/output/deept/transformer.wmt.en-de/best-so-far/output/checkpoints/ckpt-121.pt'
 
 # ======== CREATION
-
-hvd.init()
 
 config = Config.parse_config({'config': config_file})
 
