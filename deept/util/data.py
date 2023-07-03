@@ -8,7 +8,7 @@ import torch.distributed as dist
 from numpy.random import RandomState
 
 from deept.util.debug import my_print
-from deept.util.globals import Globals
+from deept.util.globals import Settings, Context
 from deept.util.threading import Thread, SharedMemory
 
 
@@ -191,13 +191,13 @@ class Dataset:
         assert sum([len(x) for x in dataset.data_ptrs]) == dataset.corpus_size
         assert len(dataset.data_ptrs) == dataset.epoch_split
 
-        if Globals.get_number_of_workers() > 1:
-            dataset.assign_to_worker(Globals.rank())
+        if Settings.get_number_of_workers() > 1:
+            dataset.assign_to_worker(Settings.rank())
 
-        actual_corpus_size = torch.Tensor([dataset.worker_corpus_size]).to(Globals.rank())
-        dist.all_reduce(actual_corpus_size, op=dist.ReduceOp.SUM)
+        worker_corpus_size = torch.Tensor([dataset.worker_corpus_size]).to('cpu')
+        dist.all_reduce(worker_corpus_size, op=dist.ReduceOp.SUM)
 
-        assert torch.eq(actual_corpus_size, torch.Tensor([dataset.corpus_size]).to(Globals.rank()))
+        assert torch.eq(worker_corpus_size, torch.Tensor([dataset.corpus_size]).to('cpu'))
 
         if dataset.in_memory:
             dataset.load_data_to_memory()
@@ -209,7 +209,7 @@ class Dataset:
 
     def apply_epoch_split(self):
 
-        RandomState(seed=Globals.get_global_seed()).shuffle(self.data_ptrs)
+        RandomState(seed=Settings.get_global_seed()).shuffle(self.data_ptrs)
         
         size        = self.corpus_size // self.epoch_split
         splitted    = []
@@ -231,7 +231,7 @@ class Dataset:
         
         self.__sort_by_size()
 
-        workers = Globals.get_number_of_workers()
+        workers = Settings.get_number_of_workers()
         kept_data_ptrs  = []
 
         for i in range(self.epoch_split):
@@ -300,7 +300,7 @@ class TranslationDataset(Dataset):
             keep = True
 
         else:
-            if not Globals.is_training():
+            if not Settings.is_training():
                 src = self.vocab_src.tokenize([Vocabulary.UNK for _ in range(5)])
                 tgt = self.vocab_tgt.tokenize([Vocabulary.UNK for _ in range(5)])
                 keep = True
@@ -483,14 +483,22 @@ class BatchAlgorithm:
         batches_ptrs = self.prepare_batches()
         total_steps = len(batches_ptrs)
 
+        if Settings.get_number_of_workers() > 1:
+            total_steps = torch.Tensor([total_steps]).to('cpu')
+            dist.all_reduce(total_steps, op=dist.ReduceOp.MIN)
+            total_steps = int(total_steps.item())
+
         if chunking is not None:
             assert isinstance(chunking, int) and chunking >= 1
             chunk_batch_ptrs = []
             chunk_tensors = [[] for _ in self.dataset.ptrs_to_tensor(batches_ptrs[0])]
             total_steps = total_steps // chunking
 
-        for batch_ptrs in batches_ptrs:
+        for step in range(total_steps):
+            
+            batch_ptrs = batches_ptrs[step]
             tensors = self.dataset.ptrs_to_tensor(batch_ptrs)
+            
             if chunking is None:
                 yield batch_ptrs, tensors, total_steps
             else:
@@ -519,7 +527,7 @@ class BucketingBatchAlgorithm(BatchAlgorithm):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-        self.random_state = RandomState(seed=Globals.get_global_seed())
+        self.random_state = RandomState(seed=Settings.get_global_seed())
 
         self.bucket_boundaries = [] # type: [int]
         self.buckets = {}           # type: {bucket_idx : [(target_len, sentence_idx)] }

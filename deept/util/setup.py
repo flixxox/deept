@@ -1,16 +1,24 @@
 
 import torch
-import torch.distributed as dist
 
 from deept.util.debug import my_print
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 
 
-def check_devices(config, train=True):
-    """ 
-    This function is run before processes are spawn.
-    It checks number_of_gpus and sets Globals.number_of_workers.
-    """
+def import_user_code(path_to_user_code):
+
+    import importlib
+    from os import listdir
+    from os.path import isdir
+
+    assert isdir(path_to_user_code)
+
+    for file in listdir(path_to_user_code):
+        if file.endswith('.py') and not file.startswith('_'):
+            module_name = file[:file.find('.py')]
+            module = importlib.import_module('deept_user.' + module_name)
+
+def check_and_correct_requested_number_of_gpus(config, train=True):
 
     num_gpus_avail = torch.cuda.device_count()
 
@@ -24,43 +32,60 @@ def check_devices(config, train=True):
     if not train: # We do not support multi-gpu for search
         config['number_of_gpus'] = min(1, config['number_of_gpus'])
 
-def setup(config, rank, world_size, train=True):
+    my_print(f'Requested number of GPUs after check: {config["number_of_gpus"]}')
 
-    setup_globals(config, rank, world_size, train)
+def setup(config, rank, world_size, train=True, time=False):
+
+    setup_settings(config, rank, world_size, train, time)
     setup_torch(config)
-    if config['number_of_gpus'] > 1:
-        setup_ddp(config)
+    setup_ddp(config)
 
-def setup_globals(config, rank, world_size, train):
+def setup_settings(config, rank, world_size, train, time):
 
-    Globals.set_rank(rank)
-    Globals.set_number_of_workers(world_size)
-    Globals.set_train_flag(train)
-    Globals.set_time_flag(False)
-    Globals.set_global_seed(config['seed', 80420])
+    setup_directories(config)
+
+    Settings.set_rank(rank)
+    Settings.set_number_of_workers(world_size)
+    Settings.set_train_flag(train)
+    Settings.set_time_flag(time)
+    Settings.set_global_seed(config['seed', 80420])
     if config['number_of_gpus'] < 1:
         my_print('Limiting to CPU!')
-        Globals.set_cpu()
-        Globals.set_device('cpu')
+        Settings.set_cpu()
+        Settings.set_device('cpu')
     else:
-        Globals.set_device(f'cuda:{Globals.rank()}')
+        Settings.set_device(f'cuda:{Settings.rank()}')
+
+def setup_directories(config):
+    from os.path import join
+
+    Settings.add_dir('output_dir', config['output_folder'])
+    Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
+    Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
+
+    __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
+    __maybe_create_dir(Settings.get_dir('numbers_dir'))
+
+def __maybe_create_dir(dir):
+    from os import mkdir
+    from os.path import isdir
+    if not isdir(dir) and Settings.rank() == 0:
+        mkdir(checkpoint_dir)
 
 def setup_torch(config):
-
     if config['deterministic', False]:
         torch.use_deterministic_algorithms(True)
 
 def setup_ddp(config):
 
     import os
+    import torch.distributed as dist
 
-    my_print('Setting up DDP!')
+    my_print('Setting up distributed training!')
 
-    config['update_freq'] = config['update_freq'] // Globals.get_number_of_workers()
-
+    config['update_freq'] = config['update_freq'] // Settings.get_number_of_workers()
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')
 
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
-    
-    dist.init_process_group("nccl", rank=Globals.rank(), world_size=Globals.get_number_of_workers())
+    dist.init_process_group(rank=Settings.rank(), world_size=Settings.get_number_of_workers()) # Uses nccl for gpu and gloo for cpu communication

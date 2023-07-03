@@ -5,7 +5,7 @@ from os.path import isdir, isfile, join
 import torch
 
 from deept.util.debug import my_print
-from deept.util.globals import Globals
+from deept.util.globals import Settings, Context
 
 
 class CheckpointManager:
@@ -17,28 +17,17 @@ class CheckpointManager:
         
         self.best_ppl = float('inf')
         self.ckpts_since_best = 0
-        self.step_count = 1         # The current step. Increased after do_checkpoint_after_step()
-        self.epoch_count = 1        # The current epoch. Increased after do_checkpoint_after_epoch()
-        self.checkpoint_count = 1   # The current checkpoint number. Increased after save()
+        self.step_count = 1 # The current step. Increased after do_checkpoint_after_step()
+        self.epoch_count = 1 # The current epoch. Increased after do_checkpoint_after_epoch()
+        self.checkpoint_count = 1 # The current checkpoint number. Increased after save()
         self.timestamp = 0
         self.checkpoint_duration_accum = 0
 
-
     @staticmethod
-    def create_train_checkpoint_manager_from_config(config, model, optimizer):
-
-        if config.has_key('checkpoint_dir'):
-            checkpoint_dir = config['checkpoint_dir']
-        else:
-            checkpoint_dir = join(config['output_folder'], 'checkpoints')
-
-        if not isdir(checkpoint_dir) and hvd.rank() == 0:
-            mkdir(checkpoint_dir)
+    def create_train_checkpoint_manager_from_config(config):
 
         checkpoint_manager = CheckpointManager(
-            model = model,
-            optimizer = optimizer,
-            checkpoint_dir = checkpoint_dir,
+            checkpoint_dir = Settings.get_dir('checkpoint_dir'),
             checkpoint_period = config['checkpoint_period'],
             resume_training = config['resume_training', False],
             do_checkpoints = config['checkpoints'],
@@ -74,7 +63,7 @@ class CheckpointManager:
 
         else:
             my_print(f'Initializing model weights!')
-            self.model.init_weights()
+            Context['model'].init_weights()
 
     def restore_latest(self):
         self.restore(self.get_latest_checkpoint_path())
@@ -83,7 +72,7 @@ class CheckpointManager:
 
         my_print(f'Loading weights from {self.load_weights_from}!')
 
-        self.model.init_weights_from_checkpoint()
+        Context['model'].init_weights_from_checkpoint()
 
     def get_latest_checkpoint_path(self):
 
@@ -112,9 +101,9 @@ class CheckpointManager:
 
         my_print(f'Loading weights from {path}!')
 
-        checkpoint = torch.load(path, map_location=Globals.get_device())
+        checkpoint = torch.load(path, map_location=Settings.get_device())
 
-        self.model.load_state_dict(checkpoint['model'])
+        Context['model'].load_state_dict(checkpoint['model'])
         self.best_ppl = checkpoint['best_ppl']
         self.ckpts_since_best = checkpoint['ckpts_since_best']
         self.step_count = checkpoint['step_count']
@@ -122,13 +111,15 @@ class CheckpointManager:
         self.checkpoint_count = checkpoint['checkpoint_count']+1
         self.checkpoint_duration_accum = checkpoint['checkpoint_duration_accum']
 
-        if hasattr(self, "optimizer"):
-            self.optimizer.load_state_dict(checkpoint['optimizer'])
+        if Settings.is_training():
+            Context['optimizer'].load_state_dict(checkpoint['optimizer'])
+        if Settings.is_training():
+            Context['lr_scheduler'].load_state_dict(checkpoint['lr_scheduler'])
 
 
     def save(self, ppl):
 
-        if hvd.rank() == 0:
+        if Settings.rank() == 0:
 
             self.save_last()
 
@@ -159,8 +150,9 @@ class CheckpointManager:
     def __save(self, path):
 
         torch.save({
-            'model': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
+            'model': Context['model'].state_dict(),
+            'optimizer': Context['optimizer'].state_dict(),
+            'lr_scheduler': Context['lr_scheduler'].state_dict(),
             'best_ppl': self.best_ppl,
             'ckpts_since_best': self.ckpts_since_best,
             'step_count': self.step_count,
@@ -281,7 +273,7 @@ class CheckpointManager:
             
             my_print(f'Summing {path}')
 
-            checkpoint = torch.load(path, map_location=Globals.get_device())
+            checkpoint = torch.load(path, map_location=Settings.get_device())
             
             if state_dict is None:
                 state_dict = checkpoint['model']

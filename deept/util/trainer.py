@@ -3,7 +3,7 @@ import math
 import torch
 
 from deept.model.scores import Score
-from deept.util.globals import Globals
+from deept.util.globals import Settings, Context
 from deept.util.timer import Timer, ContextTimer
 from deept.util.debug import my_print, print_summary, print_memory_usage
 
@@ -16,22 +16,18 @@ class Trainer:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    @staticmethod
-    def create_trainer_from_config(config, train_batch_generator, dev_batch_generator, model, criterion, optimizer, checkpoint_manager, numbers_dir):
-        
-        pad_index = train_batch_generator.dataset.vocab_src.PAD
+        self.model = Context['model']
+        self.criterion = Context['criterion']
+        self.optimizer = Context['optimizer']
+        self.lr_scheduler = Context['lr_scheduler']
 
-        assert pad_index == train_batch_generator.dataset.vocab_tgt.PAD == dev_batch_generator.dataset.vocab_tgt.PAD == dev_batch_generator.dataset.vocab_src.PAD
+    @staticmethod
+    def create_trainer_from_config(config, train_batch_generator, dev_batch_generator, checkpoint_manager):
 
         trainer = Trainer(
             train_batch_generator = train_batch_generator,
             dev_batch_generator = dev_batch_generator,
-            model = model,
-            criterion = criterion,
-            optimizer = optimizer,
             checkpoint_manager = checkpoint_manager,
-            numbers_dir = numbers_dir,
-            pad_index = pad_index,
             batch_size = config['batch_size'],
             update_freq = config['update_freq'],
             max_sentence_length = config['max_sentence_length'],
@@ -44,35 +40,24 @@ class Trainer:
     def train(self):
 
         self.model.train()
-        self.model.zero_grad()
+        self.model.zero_grad(set_to_none=True)
 
         self.checkpoint_manager.timer_start()
 
         while self.checkpoint_manager.keep_going():
-            
-            step = 1
-            max_steps = None
 
             for _, (src, tgt, out), total_steps in self.train_batch_generator.generate_batches():
 
                 assert len(src) == len(tgt) == len(out) == self.update_freq
 
-                if max_steps is None:
-                    max_steps = min(hvd.allgather_object(total_steps, name=f'gather_steps_train'))
-                elif step > max_steps:
-                    break
-
-                _, L = self.train_step(src, tgt, out)
-
-                self.optimizer.write_lr_to_file(L)
+                L = self.train_step(src, tgt, out)
 
                 if self.checkpoint_manager.do_checkpoint_after_step():
-                    self.do_checkpoint()
+                    with torch.no_grad():
+                        self.do_checkpoint()
 
                     if not self.checkpoint_manager.keep_going():
                         return
-
-                step += 1
 
             if self.checkpoint_manager.do_checkpoint_after_epoch():
                 self.do_checkpoint()
@@ -82,15 +67,15 @@ class Trainer:
         time_passed_s = self.checkpoint_manager.timer_end()
         checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
 
-        train_ce, train_ce_smooth   = self.criterion.average_and_reset()
+        train_ce, train_ce_smooth = self.criterion.average_and_reset()
         train_ppl, train_ppl_smooth = self.__calculate_ppl(train_ce, train_ce_smooth)
 
         to_print = {
-            'ce':               train_ce,
-            'ce_smooth':        train_ce_smooth,
-            'ppl':              train_ppl,
-            'ppl_smooth':       train_ppl_smooth,
-            'train_steps':      self.checkpoint_manager.step_count-1
+            'ce': train_ce,
+            'ce_smooth': train_ce_smooth,
+            'ppl': train_ppl,
+            'ppl_smooth': train_ppl_smooth,
+            'train_steps': self.checkpoint_manager.step_count-1
         }
 
         print_summary(True, checkpoint_number, **to_print)
@@ -105,7 +90,7 @@ class Trainer:
         Score.write_score_to_file(self.numbers_dir, 'train_ppl', train_ppl)
         Score.write_score_to_file(self.numbers_dir, 'dev_ppl',   dev_ppl)
 
-        if Globals.do_timing():
+        if Settings.do_timing():
             model_time = Timer.print_timing_summary(self.model)
             ContextTimer.print_summary(model_time)
 
@@ -114,21 +99,10 @@ class Trainer:
     def eval(self, checkpoint_number):
 
         self.model.eval()
-        self.model.zero_grad()
-
-        step        = 0
-        max_steps   = None
 
         for _, (src, tgt, out), total_steps in self.dev_batch_generator.generate_batches():
 
-            if max_steps is None:
-                max_steps = min(hvd.allgather_object(total_steps, name=f'gather_steps_eval'))
-            elif step > max_steps:
-                break
-
             ce, ce_smooth, _ = self.eval_step(src, tgt, out)
-
-            step += 1
 
         ce, ce_smooth       = self.criterion.average_and_reset()
         ppl, ppl_smooth     = self.__calculate_ppl(ce, ce_smooth)
@@ -144,7 +118,6 @@ class Trainer:
         print_summary(False, checkpoint_number, **to_print)
 
         self.model.train()
-        self.model.zero_grad()
 
         return ppl
 
@@ -177,20 +150,20 @@ class Trainer:
                         raise RuntimeError(f'Detected NoneType gradient!')
 
         with ContextTimer('optimizer_step'):
-            lr = self.optimizer.step()
-        
-        self.model.zero_grad()
+            self.optimizer.step()
+            self.lr_scheduler.step()
+            self.optimizer.zero_grad(set_to_none=True)
 
-        return (lr, L_accum)
+        return L_accum
     
     def train_ministep(self, src, tgt, out):
 
-        src = src.to(Globals.get_device())
-        tgt = tgt.to(Globals.get_device())
-        out = out.to(Globals.get_device())
+        src = src.to(Settings.get_device())
+        tgt = tgt.to(Settings.get_device())
+        out = out.to(Settings.get_device())
 
         with ContextTimer('model_mask_creation'):
-            masks, out_mask = self.model.create_masks(src, out, self.pad_index)
+            masks, out_mask = self.model.create_masks(src, out)
 
         output, _ = self.model(src, tgt, **masks)
 
@@ -201,16 +174,16 @@ class Trainer:
             ce_smooth.backward()
 
         if self.deterministic:
-            Globals.increase_global_seed()
-            torch.manual_seed(Globals.get_global_seed())
+            Settings.increase_global_seed()
+            torch.manual_seed(Settings.get_global_seed())
 
         return L_ce
 
     def eval_step(self, src, tgt, out):
         
-        src = src.to(Globals.get_device())
-        tgt = tgt.to(Globals.get_device())
-        out = out.to(Globals.get_device())
+        src = src.to(Settings.get_device())
+        tgt = tgt.to(Settings.get_device())
+        out = out.to(Settings.get_device())
 
         with torch.no_grad():
             masks, out_mask     = self.model.create_masks(src, out, self.pad_index)

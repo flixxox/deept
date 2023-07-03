@@ -4,7 +4,7 @@ import time
 import torch
 import torch.nn as nn
 
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 from deept.model.state import StaticState, DynamicState
 from deept.util.debug import my_print, print_memory_usage
 
@@ -49,8 +49,8 @@ class SearchAlgorithm(nn.Module):
 
         for idx, (src, _, out), _ in search_batch_generator.generate_batches():
             
-            src = src.to(Globals.get_device())
-            out = out.to(Globals.get_device())
+            src = src.to(Settings.get_device())
+            out = out.to(Settings.get_device())
 
             num_sentences += src.shape[0]
 

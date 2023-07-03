@@ -1,6 +1,22 @@
 
+class Context:
+    """Objects used to train and search."""
 
-class Globals:
+    __CONTEXT = {}
+
+    def add_context(key, obj):
+        if key not in Context.__CONTEXT:
+            Context.__CONTEXT[key] = obj
+        else:
+            from deept.util.debug import my_print
+            my_print(f'Warning! Context {key} is already set. Skipping!')
+
+    def __class_getitem__(cls, key):
+        return Context.__CONTEXT[key]
+
+
+class Settings:
+    """Internal config variables."""
 
     __IS_TRAIN  = None
     __TIME      = None
@@ -9,71 +25,85 @@ class Globals:
     __DEVICE    = None
     __SEED      = None
     __RANK      = None
+    __DIRS      = {}
 
     @staticmethod
     def set_train_flag(flag):
-        if Globals.__IS_TRAIN is None:
-            Globals.__IS_TRAIN = flag
+        if Settings.__IS_TRAIN is None:
+            Settings.__IS_TRAIN = flag
 
     @staticmethod
     def is_training():
-        return Globals.__IS_TRAIN
+        return Settings.__IS_TRAIN
 
     @staticmethod
     def set_time_flag(flag):
-        if Globals.__TIME is None:
-            Globals.__TIME = flag
+        if Settings.__TIME is None:
+            Settings.__TIME = flag
 
     @staticmethod
     def do_timing():
-        return Globals.__TIME
+        return Settings.__TIME
 
     @staticmethod
     def set_number_of_workers(workers, force=False):
-        if Globals.__WORKERS is None or force:
-            Globals.__WORKERS = workers
+        if Settings.__WORKERS is None or force:
+            Settings.__WORKERS = workers
 
     @staticmethod
     def get_number_of_workers():
-        return Globals.__WORKERS
+        return Settings.__WORKERS
 
     @staticmethod
     def set_cpu():
-        if Globals.__GPU:
-            Globals.__GPU = False
+        if Settings.__GPU:
+            Settings.__GPU = False
 
     @staticmethod
     def is_gpu():
-        return Globals.__GPU
+        return Settings.__GPU
 
     @staticmethod
     def set_device(device):
-        if Globals.__DEVICE is None:
-            Globals.__DEVICE = device
+        if Settings.__DEVICE is None:
+            Settings.__DEVICE = device
 
     @staticmethod
     def get_device():
-        return Globals.__DEVICE
+        return Settings.__DEVICE
 
     @staticmethod
     def set_global_seed(seed):
-        if Globals.__SEED is None:
-            Globals.__SEED = seed
+        if Settings.__SEED is None:
+            Settings.__SEED = seed
     
     @staticmethod
     def get_global_seed():
-        return Globals.__SEED
+        return Settings.__SEED
 
     @staticmethod
     def increase_global_seed():
-        Globals.__SEED += 1
+        Settings.__SEED += 1
 
     @staticmethod
     def set_rank(rank):
-        if Globals.__RANK is None:
-            Globals.__RANK = rank
+        if Settings.__RANK is None:
+            Settings.__RANK = rank
     
     @staticmethod
     def rank():
-        return Globals.__RANK
+        return Settings.__RANK
+
+    @staticmethod
+    def add_dir(name, path):
+        if path not in Settings.__DIRS:
+            Settings.__DIRS[name] = path
+        else:
+            from deept.util.debug import my_print
+            my_print(f'Warning! Directory {name} is already set. Skipping!')
+
+    @staticmethod
+    def get_dir(name):
+        return Settings.__DIRS[name]
+
 

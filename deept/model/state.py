@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 
 
 class StaticState:
@@ -66,7 +66,7 @@ class DynamicState(nn.Module):
 
         self.stepwise = stepwise
         
-        if not Globals.is_training() and stepwise:
+        if not Settings.is_training() and stepwise:
             self.dtype = dtype
             self.time_dim = time_dim
             self.cache = None
@@ -77,7 +77,7 @@ class DynamicState(nn.Module):
         Appends the current state s to the cache.
         Returns all saved states and the current state s.
         """
-        if Globals.is_training() or not self.stepwise:
+        if Settings.is_training() or not self.stepwise:
             return s
         else:
             

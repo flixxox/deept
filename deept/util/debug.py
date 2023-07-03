@@ -1,8 +1,7 @@
 
-from deept.util.globals import Globals
-
 def my_print(*args, **kwargs):
-    if Globals.rank() == 0 or Globals.rank() == None:
+    from deept.util.globals import Settings
+    if Settings.rank() == 0 or Settings.rank() == None:
         print(*args, flush=True, **kwargs)
 
 def get_number_of_trainable_variables(model):
@@ -16,22 +15,27 @@ def get_number_of_trainable_variables(model):
 
 def print_memory_usage():
     import os
-    from resource import getrusage, RUSAGE_SELF
     import torch
-    import psutil
-    from deept.util.globals import Globals
+    from resource import getrusage, RUSAGE_SELF
+    from deept.util.globals import Settings
 
-    if Globals.is_gpu():
-        current_gpu_memory = torch.cuda.memory_allocated(device=Globals.get_device())
-        peak_gpu_memory = torch.cuda.max_memory_allocated(device=Globals.get_device())
+    try:
+        import psutil
+        current_ram = psutil.Process(os.getpid()).memory_info()[0]/2.**30
+        peak_ram = getrusage(RUSAGE_SELF).ru_maxrss/10.**6
+    except ImportError:
+        my_print('Warning! Please install psutil to print RAM usage.')
+        current_ram = 0
+        peak_ram = 0
+
+    if Settings.is_gpu():
+        current_gpu_memory = torch.cuda.memory_allocated(device=Settings.get_device())
+        peak_gpu_memory = torch.cuda.max_memory_allocated(device=Settings.get_device())
     else:
         current_gpu_memory = 0
         peak_gpu_memory = 0
 
-    current_ram = psutil.Process(os.getpid()).memory_info()[0]/2.**30
-    peak_ram = getrusage(RUSAGE_SELF).ru_maxrss/10.**6
-
-    print(f'Worker {hvd.rank()}: Memory [Current/Peak]. GPU: [{(current_gpu_memory / 1e9):4.2f}GB/{(peak_gpu_memory / 1e9):4.2f}GB], RAM: [{current_ram:4.2f}GB/{peak_ram:4.2f}GB]', flush=True)
+    print(f'Worker {Settings.rank()}: Memory [Current/Peak]. GPU: [{(current_gpu_memory / 1e9):4.2f}GB/{(peak_gpu_memory / 1e9):4.2f}GB], RAM: [{current_ram:4.2f}GB/{peak_ram:4.2f}GB]', flush=True)
 
 def print_summary(is_train, number, **kwargs):
 

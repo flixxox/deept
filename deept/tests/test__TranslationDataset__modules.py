@@ -5,7 +5,7 @@ import torch
 
 from deept.util.config import Config
 from deept.util.debug import my_print
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 from deept.util.data import Vocabulary, TranslationDataset
 
 class TestData(unittest.TestCase):
@@ -198,8 +198,8 @@ class TestData(unittest.TestCase):
         path_test_data_src  = 'tests/res/mockup_data_src'
         path_test_data_tgt  = 'tests/res/mockup_data_tgt'
 
-        Globals.set_number_of_workers(workers, force=True)
-        Globals.set_train_flag(True)
+        Settings.set_number_of_workers(workers, force=True)
+        Settings.set_train_flag(True)
 
         vocab_src = Vocabulary.create_vocab(path_test_vocab_src)
         vocab_tgt = Vocabulary.create_vocab(path_test_vocab_tgt)

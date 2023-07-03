@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from deept.util.timer import Timer
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 
 
 class MultiHeadAttention(nn.Module):
@@ -156,7 +156,7 @@ class SinusodialPositionalEmbedding(nn.Module):
         pos_embed[:, 0::2] = torch.sin(pos)
         pos_embed[:, 1::2] = torch.cos(pos)
 
-        self.register_buffer('pos_embed', pos_embed.to(Globals.get_device()))
+        self.register_buffer('pos_embed', pos_embed.to(Settings.get_device()))
 
     def __call__(self, x, J=None):
 

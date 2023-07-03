@@ -2,7 +2,7 @@
 import torch
 
 from deept.util.debug import my_print
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 from deept.model.state import StaticState, DynamicState
 from deept.search.search_algorithm import SearchAlgorithm
 
@@ -39,15 +39,15 @@ class BeamSearch(SearchAlgorithm):
         PAD     = self.PAD
         EOS     = self.EOS
 
-        fin_storage_scores  = torch.ones(B, N, dtype=torch.float32).to(Globals.get_device()) * -float('inf')
-        active_mask         = torch.ones(B, N, dtype=torch.bool).to(Globals.get_device())
+        fin_storage_scores  = torch.ones(B, N, dtype=torch.float32).to(Settings.get_device()) * -float('inf')
+        active_mask         = torch.ones(B, N, dtype=torch.bool).to(Settings.get_device())
         BNa                 = BN
-        tgt                 = torch.ones(B, N, 1, dtype=torch.int32).to(Globals.get_device()) * EOS
+        tgt                 = torch.ones(B, N, 1, dtype=torch.int32).to(Settings.get_device()) * EOS
 
-        precomp_indices = torch.arange(N).to(Globals.get_device()).unsqueeze(0)
-        precomp_indices = precomp_indices.repeat(B, 1) + torch.arange(B).to(Globals.get_device()).unsqueeze(1) * N
+        precomp_indices = torch.arange(N).to(Settings.get_device()).unsqueeze(0)
+        precomp_indices = precomp_indices.repeat(B, 1) + torch.arange(B).to(Settings.get_device()).unsqueeze(1) * N
 
-        tgt_first   = torch.ones(B, 1, dtype=torch.int32).to(Globals.get_device()) * EOS
+        tgt_first   = torch.ones(B, 1, dtype=torch.int32).to(Settings.get_device()) * EOS
         
         masks, _    = self.model.create_masks(src, tgt_first, PAD)
         enc_state   = StaticState(self.model.encoder)
@@ -204,7 +204,7 @@ class BeamSearch(SearchAlgorithm):
         best_words = best_words.masked_fill_(rev_active_mask, self.PAD)
 
         best_beams = torch.gather(best_beams, -1, indices)
-        best_beams = torch.where(rev_active_mask, torch.arange(self.beam_size).to(Globals.get_device()), best_beams)
+        best_beams = torch.where(rev_active_mask, torch.arange(self.beam_size).to(Settings.get_device()), best_beams)
 
         tgt = torch.gather(tgt, 1, best_beams.unsqueeze(-1).repeat(1, 1, i))
         tgt = torch.cat((tgt, best_words.unsqueeze(-1)), axis=-1)

@@ -3,7 +3,7 @@ import unittest
 import torch
 import numpy as np
 
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 from deept.model.state import DynamicState
 
 class TestState(unittest.TestCase):
@@ -11,7 +11,7 @@ class TestState(unittest.TestCase):
 
     def test_full(self):
 
-        Globals.set_train_flag(False)
+        Settings.set_train_flag(False)
 
         state = DynamicState(time_dim=1)
 
@@ -35,7 +35,7 @@ class TestState(unittest.TestCase):
 
         import math
         
-        Globals.set_train_flag(False)
+        Settings.set_train_flag(False)
 
         state = DynamicState()
 
@@ -74,7 +74,7 @@ class TestState(unittest.TestCase):
 
         import math
 
-        Globals.set_train_flag(False)
+        Settings.set_train_flag(False)
 
         state = DynamicState()
 
@@ -115,7 +115,7 @@ class TestState(unittest.TestCase):
 
         import math
 
-        Globals.set_train_flag(False)
+        Settings.set_train_flag(False)
 
         state = DynamicState()
 

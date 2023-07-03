@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 from deept.util.debug import my_print
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 
 
 class Timer(nn.Module):
@@ -14,7 +14,7 @@ class Timer(nn.Module):
 
         self.object_to_time = object_to_time
 
-        if Globals.do_timing():
+        if Settings.do_timing():
             self.time_accum = tf.Variable(initial_value=0, dtype=tf.float64, trainable=False, name='time_accum')
 
     @staticmethod
@@ -77,12 +77,12 @@ class Timer(nn.Module):
 
     def __call__(self, *args, **kwargs):
 
-        if Globals.do_timing():
+        if Settings.do_timing():
             start = Timer.timestamp()
         
         out =  self.object_to_time(*args, **kwargs)
 
-        if Globals.do_timing():
+        if Settings.do_timing():
             end = Timer.timestamp()
             self.time_accum.assign_add(end - start)
 
@@ -122,9 +122,9 @@ class ContextTimer:
         ContextTimer.timings[self.name] += Timer.timestamp() - self.timestamp_start
 
     def __enter__(self):
-        if Globals.do_timing():
+        if Settings.do_timing():
             self.start()
 
     def __exit__(self, exception_type, exception_value, traceback):
-        if Globals.do_timing():
+        if Settings.do_timing():
             self.end()

@@ -5,7 +5,7 @@ import torch
 
 from deept.util.config import Config
 from deept.util.debug import my_print
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 from deept.util.data import Vocabulary, Dataset, BatchGenerator, BucketingBatchAlgorithm, LinearBatchAlgorithm
 
 class TestData(unittest.TestCase):
@@ -76,8 +76,8 @@ class TestData(unittest.TestCase):
 
     def __prepare_testable_objects(self, algorithm_class, path_test_vocab_src, path_test_vocab_tgt, path_test_data_src, path_test_data_tgt, batch_size, max_sentence_length, epoch_split, in_memory, threaded_data_loading):
 
-        Globals.set_number_of_workers(1)
-        Globals.set_train_flag(True)
+        Settings.set_number_of_workers(1)
+        Settings.set_train_flag(True)
 
         config = Config(
             {

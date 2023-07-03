@@ -6,7 +6,7 @@ import torch
 
 from models import create_model_from_config
 from deept.util.config import Config
-from deept.util.globals import Globals
+from deept.util.globals import Settings
 from deept.util.setup import setup_torch_from_config
 from deept.util.checkpoint_manager import CheckpointManager
 from deept.util.debug import my_print, get_number_of_trainable_variables
@@ -62,7 +62,7 @@ def search(config):
     checkpoint_manager = CheckpointManager.create_eval_checkpoint_manager_from_config(config, model)
     checkpoint_manager.restore(config['checkpoint_path'])
 
-    model = model.to(Globals.get_device())
+    model = model.to(Settings.get_device())
 
     my_print(f'Trainable variables: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
 
@@ -100,8 +100,8 @@ def start():
     args = parse_cli_arguments()
 
     config = Config.parse_config(args)
-    Globals.set_train_flag(False)
-    Globals.set_time_flag(False)
+    Settings.set_train_flag(False)
+    Settings.set_time_flag(False)
 
     config.print_config()
 
