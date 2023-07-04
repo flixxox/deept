@@ -182,15 +182,20 @@ class Dataset:
         else:
             raise ValueError(f'Unrecognized dataset option {config["dataset"]}')
 
-        my_print('Loading data pointers!')
-        dataset.load_data_ptrs()
+        if Settings.rank() == 0:
+            my_print('Loading data pointers on rank 0!')
+            dataset.load_data_ptrs()
 
-        if Settings.get_number_of_workers() > 1:
-            dataset.assign_to_worker(Settings.rank())
+            if Settings.get_number_of_workers() > 1:
+                dataset.__assign_to_worker(Settings.rank())
+        
+        else:
+            print(f'Receiving data pointers on rank {Setting.rank()}!', flush=True)
+            ptrs_tensor, size_tensor = dataset.__receive_data_ptrs_from_main()
+            data_prs = dataset.from_tensors_to_tuple_list(ptrs_tensor, size_tensor)
 
         worker_corpus_size = torch.Tensor([dataset.worker_corpus_size]).to('cpu')
         dist.all_reduce(worker_corpus_size, op=dist.ReduceOp.SUM)
-
         assert torch.eq(worker_corpus_size, torch.Tensor([dataset.corpus_size]).to('cpu'))
 
         if dataset.in_memory:
@@ -206,7 +211,7 @@ class Dataset:
         Make sure to distribute the data across workers (At a later point this should be done by deept). """
         raise NotImplementedError
 
-    def assign_to_worker(self, worker_rank):
+    def __assign_to_worker(self, worker_rank):
         
         self.__sort_by_size()
 
