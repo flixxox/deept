@@ -164,10 +164,10 @@ class Dataset:
         self.corpus_size = 0
         self.worker_corpus_size = 0
         self.data = [] # [data] Only used when the dataset is loaded into memory
-        self.data_ptrs = [[]] # [[(data_ptr, size)]]
+        self.data_ptrs = [] # [(data_ptr, size)]
 
     @staticmethod
-    def create_dataset_from_config(config, name, src_path, tgt_path, vocab_src, vocab_tgt, epoch_split=1):
+    def create_dataset_from_config(config, name, src_path, tgt_path, vocab_src, vocab_tgt):
 
         if config['dataset'] == 'TranslationDataset':
             dataset = TranslationDataset(
@@ -177,19 +177,13 @@ class Dataset:
                 tgt_path = tgt_path,
                 name = name,
                 maxI = config['max_sentence_length'],
-                in_memory = config['load_datset_in_memory'],
-                epoch_split = epoch_split
+                in_memory = config['load_datset_in_memory']
             )
         else:
             raise ValueError(f'Unrecognized dataset option {config["dataset"]}')
 
+        my_print('Loading data pointers!')
         dataset.load_data_ptrs()
-
-        if dataset.epoch_split > 1:
-            dataset.apply_epoch_split()
-
-        assert sum([len(x) for x in dataset.data_ptrs]) == dataset.corpus_size
-        assert len(dataset.data_ptrs) == dataset.epoch_split
 
         if Settings.get_number_of_workers() > 1:
             dataset.assign_to_worker(Settings.rank())
@@ -205,27 +199,12 @@ class Dataset:
         return dataset
 
     def load_data_ptrs(self):
+        """ Load pointers of data entries with their corresponding size: [(ptr, size)].
+        Size needs to be an integer and ptr can be anything you like.
+        We will use size to sort by length and determine if the data fits in a batch.
+        In ptrs_to_tensors you have to make sure to load the corrsponding data based on ptr.
+        Make sure to distribute the data across workers (At a later point this should be done by deept). """
         raise NotImplementedError
-
-    def apply_epoch_split(self):
-
-        RandomState(seed=Settings.get_global_seed()).shuffle(self.data_ptrs)
-        
-        size        = self.corpus_size // self.epoch_split
-        splitted    = []
-
-        for i in range(self.epoch_split-1):
-
-            lower = i * size
-            upper = lower + size
-            
-            splitted.append(self.data_ptrs[0][lower:upper])
-
-            assert len(splitted[-1]) == size
-
-        splitted.append(self.data_ptrs[0][upper:])
-
-        self.data_ptrs = splitted
 
     def assign_to_worker(self, worker_rank):
         
@@ -234,22 +213,17 @@ class Dataset:
         workers = Settings.get_number_of_workers()
         kept_data_ptrs  = []
 
-        for i in range(self.epoch_split):
-            
-            kept_data_ptrs.append([])
-
-            for j in range(len(self.data_ptrs[i])):
-                if j % workers == worker_rank:
-                    kept_data_ptrs[i].append(self.data_ptrs[i][j])
+        for i in range(len(self.data_ptrs)):
+            if i % workers == worker_rank:
+                kept_data_ptrs.append(self.data_ptrs[i])
 
         self.data_ptrs = kept_data_ptrs
-        self.worker_corpus_size = sum(len(epoch_split) for epoch_split in self.data_ptrs)
+        self.worker_corpus_size = len(self.data_ptrs)
 
         print(f'Worker {worker_rank} is working on {self.worker_corpus_size} sentences for dataset {self.name}', flush=True)
 
     def __sort_by_size(self):
-        for i in range(self.epoch_split):
-            self.data_ptrs[i].sort(key=lambda item : item[1])
+        self.data_ptrs.sort(key=lambda item : item[1])
 
     def load_data_to_memory(self):
         raise NotImplementedError
@@ -269,23 +243,18 @@ class TranslationDataset(Dataset):
     def load_data_ptrs(self):
 
         discarded_count = 0
-
         with open(self.src_path, "r") as src_file, open(self.tgt_path, "r") as tgt_file:
-            
             for i, (src, tgt) in enumerate(zip(src_file, tgt_file)):
-                
                 _ , keep, size = self.__preprocess(src, tgt)
-
                 if keep:
-                    self.data_ptrs[0].append((i, size))
+                    self.data_ptrs.append((i, size))
                 else:
                     discarded_count += 1
-        
+
         if discarded_count > 0:
             my_print(f'Discarded {discarded_count} sentences of dataset "{self.name}" because they exceeded the maximum sentence length of {self.maxI}')
 
-        self.corpus_size = len(self.data_ptrs[0])
-        self.worker_corpus_size = len(self.data_ptrs[0])
+        self.corpus_size = len(self.data_ptrs)
 
     def __preprocess(self, src, tgt):
 
@@ -315,8 +284,7 @@ class TranslationDataset(Dataset):
 
         indices_list = []
         for ptrs in self.data_ptrs:
-            for i in ptrs:
-                indices_list.append(i[0])
+            indices_list.append(ptrs[0])
 
         indices_list = set(indices_list)
         
@@ -469,13 +437,12 @@ class BatchGenerator:
 class BatchAlgorithm:
 
     def __init__(self, dataset, chunking=None):
-        self.dataset            = dataset
-        self.epoch_split_index  = 0
+        self.dataset = dataset
 
     def generate_batches(self, chunking=None):
         """
         Yields the batch generation result: idx, tensors, total_number_of_steps.
-        If chunking is enabled it will return [idx], [tensors], total_number_of_steps
+        If chunking is enabled it will return [idx], [tensors], total_number_of_steps.
         """
 
         self.setup()
@@ -498,11 +465,11 @@ class BatchAlgorithm:
             
             batch_ptrs = batches_ptrs[step]
             tensors = self.dataset.ptrs_to_tensor(batch_ptrs)
-            
+
             if chunking is None:
                 yield batch_ptrs, tensors, total_steps
-            else:
 
+            else:
                 if len(chunk_batch_ptrs) < chunking:
                     chunk_batch_ptrs.append(batch_ptrs)
                     for i, tensor in enumerate(tensors):
@@ -515,8 +482,6 @@ class BatchAlgorithm:
 
                 else:
                     raise RuntimeError(f'The actual chunk size {len(chunk_batch_ptrs)} should never exceed the desired one {chunking}')
-
-        self.epoch_split_index = (self.epoch_split_index + 1) % self.dataset.epoch_split
 
 
 class BucketingBatchAlgorithm(BatchAlgorithm):
@@ -555,7 +520,7 @@ class BucketingBatchAlgorithm(BatchAlgorithm):
 
         self.buckets = {i: [] for i in range(len(self.bucket_boundaries)-1)}
 
-        for (data_ptr, size) in self.dataset.data_ptrs[self.epoch_split_index]:
+        for (data_ptr, size) in self.dataset.data_ptrs:
 
             lb = 0
 
@@ -571,7 +536,7 @@ class BucketingBatchAlgorithm(BatchAlgorithm):
         for i in self.buckets:
             sum += len(self.buckets[i])
 
-        assert sum == len(self.dataset.data_ptrs[self.epoch_split_index])
+        assert sum == len(self.dataset.data_ptrs)
 
     def prepare_batches(self):
         
@@ -585,13 +550,9 @@ class BucketingBatchAlgorithm(BatchAlgorithm):
                 buckets.pop(i)
 
         batches_ptrs = []
-
         while len(buckets) != 0:
-
             i = self.random_state.choice(list(buckets.keys()))
-
             batch_ptrs = self.__get_batch_indices(i, buckets, batch_size)
-
             batches_ptrs.append(batch_ptrs)
 
         return batches_ptrs
@@ -654,7 +615,7 @@ class LinearBatchAlgorithm(BatchAlgorithm):
 
         self.data_ptrs = []
 
-        for (data_ptr, size) in self.dataset.data_ptrs[self.epoch_split_index]:
+        for (data_ptr, size) in self.dataset.data_ptrs:
 
             self.data_ptrs.append((data_ptr, size))
 

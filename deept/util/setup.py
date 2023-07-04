@@ -35,7 +35,6 @@ def check_and_correct_requested_number_of_gpus(config, train=True):
     my_print(f'Requested number of GPUs after check: {config["number_of_gpus"]}')
 
 def setup(config, rank, world_size, train=True, time=False):
-
     setup_settings(config, rank, world_size, train, time)
     setup_torch(config)
     setup_ddp(config)
@@ -85,6 +84,8 @@ def setup_ddp(config):
 
     config['update_freq'] = config['update_freq'] // Settings.get_number_of_workers()
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')
+
+    torch.cuda.set_device(Settings.get_device())
 
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'

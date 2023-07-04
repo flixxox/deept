@@ -53,17 +53,11 @@ class CheckpointManager:
         return checkpoint_manager
 
 
-    def restore_or_initialize(self):
-
+    def restore_if_requested(self):
         if self.resume_training:
             self.restore_latest()
-
         elif self.load_weights:
             self.load_weights_from_checkpoint()
-
-        else:
-            my_print(f'Initializing model weights!')
-            Context['model'].init_weights()
 
     def restore_latest(self):
         self.restore(self.get_latest_checkpoint_path())
@@ -240,30 +234,34 @@ class CheckpointManager:
 
     def average_last_N_checkpoints(self, N):
 
-        assert N > 1
-        assert self.checkpoint_count > 1
+        if Settings.rank() == 0:
 
-        my_print(f'Averaging last {N} checkpoints!')
-        
-        checkpoint_paths = [join(self.checkpoint_dir, f'ckpt-{i}.pt') for i in range(max(self.checkpoint_count-N, 1), self.checkpoint_count)]
+            assert N > 1
+            assert self.checkpoint_count > 1
 
-        self.average_checkpoints(checkpoint_paths, suffix='avg-last')
+            my_print(f'Averaging last {N} checkpoints!')
+            
+            checkpoint_paths = [join(self.checkpoint_dir, f'ckpt-{i}.pt') for i in range(max(self.checkpoint_count-N, 1), self.checkpoint_count)]
+
+            self.average_checkpoints(checkpoint_paths, suffix='avg-last')
 
     def average_N_after_best_checkpoint(self, N):
-        
-        assert N > 1
-        assert self.checkpoint_count > 1
-        
-        best_checkpoint = self.checkpoint_count - self.ckpts_since_best - 1
 
-        min_ckpt = max(best_checkpoint, 1)
-        max_ckpt = min(best_checkpoint+N, self.checkpoint_count)
-
-        checkpoint_paths = [join(self.checkpoint_dir, f'ckpt-{i}.pt') for i in range(min_ckpt, max_ckpt)]
+        if Settings.rank() == 0:
         
-        my_print(f'Averaging [{min_ckpt}, {max_ckpt}) checkpoints!')
+            assert N > 1
+            assert self.checkpoint_count > 1
+            
+            best_checkpoint = self.checkpoint_count - self.ckpts_since_best - 1
 
-        self.average_checkpoints(checkpoint_paths, suffix='avg-best')
+            min_ckpt = max(best_checkpoint, 1)
+            max_ckpt = min(best_checkpoint+N, self.checkpoint_count)
+
+            checkpoint_paths = [join(self.checkpoint_dir, f'ckpt-{i}.pt') for i in range(min_ckpt, max_ckpt)]
+            
+            my_print(f'Averaging [{min_ckpt}, {max_ckpt}) checkpoints!')
+
+            self.average_checkpoints(checkpoint_paths, suffix='avg-best')
 
     def average_checkpoints(self, checkpoint_paths, suffix='avg'):
 

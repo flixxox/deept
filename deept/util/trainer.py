@@ -104,8 +104,8 @@ class Trainer:
 
             ce, ce_smooth, _ = self.eval_step(src, tgt, out)
 
-        ce, ce_smooth       = self.criterion.average_and_reset()
-        ppl, ppl_smooth     = self.__calculate_ppl(ce, ce_smooth)
+        ce, ce_smooth = self.criterion.average_and_reset()
+        ppl, ppl_smooth = self.__calculate_ppl(ce, ce_smooth)
 
         to_print = {
             'ce':               ce,
@@ -137,9 +137,13 @@ class Trainer:
 
         L_accum = 0
 
-        for i in range(len(src)):
-            L = self.train_ministep(src[i], tgt[i], out[i])
-            L_accum += L
+        with self.model.no_sync():
+            for i in range(len(src)-1):
+                L = self.train_ministep(src[i], tgt[i], out[i])
+                L_accum += L
+        
+        L = self.train_ministep(src[-1], tgt[-1], out[-1])
+        L_accum += L
 
         with ContextTimer('average_gradients'):
             for p in self.model.parameters():
@@ -163,7 +167,7 @@ class Trainer:
         out = out.to(Settings.get_device())
 
         with ContextTimer('model_mask_creation'):
-            masks, out_mask = self.model.create_masks(src, out)
+            masks, out_mask = self.model.module.create_masks(src, out)
 
         output, _ = self.model(src, tgt, **masks)
 

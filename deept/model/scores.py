@@ -5,6 +5,7 @@ from os.path import join, isdir
 
 import torch
 import torch.nn as nn
+import torch.distributed as dist
 
 
 class Score(nn.Module):
@@ -26,7 +27,7 @@ class Score(nn.Module):
     @staticmethod
     def write_score_to_file(directory, filename, score):
 
-        if hvd.rank() != 0:
+        if Settings.rank() != 0:
             return
 
         if not isdir(directory):
@@ -61,9 +62,9 @@ class LabelSmoothingCrossEntropyLoss(Score):
 
         tgtV = output.shape[-1]
 
-        out         = out.reshape(-1, 1)
-        output      = output.reshape(-1, tgtV)
-        out_mask    = out_mask.reshape(-1, 1)
+        out = out.reshape(-1, 1)
+        output = output.reshape(-1, tgtV)
+        out_mask = out_mask.reshape(-1, 1)
         
         m = self.m
         w = m / (tgtV - 1)
@@ -88,9 +89,9 @@ class LabelSmoothingCrossEntropyLoss(Score):
 
     def average_and_reset(self):
 
-        ce = hvd.allreduce(self.ce, average=False)
-        ce_smooth = hvd.allreduce(self.ce_smooth, average=False)
-        L = hvd.allreduce(self.L, average=False)
+        dist.all_reduce(self.ce, op=dist.ReduceOp.SUM)
+        dist.all_reduce(self.ce_smooth, op=dist.ReduceOp.SUM)
+        dist.all_reduce(self.L, op=dist.ReduceOp.SUM)
 
         ce = float(ce.cpu().detach().numpy())
         ce_smooth = float(ce_smooth.cpu().detach().numpy())

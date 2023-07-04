@@ -55,8 +55,6 @@ def parse_cli_arguments():
     return vars(args)
 
 def start(config):
-    
-    import_user_code(config['user_code'])
 
     check_and_correct_requested_number_of_gpus(config)
 
@@ -74,10 +72,15 @@ def start(config):
 
 def train(rank, config, world_size):
 
+    import_user_code(config['user_code'])
+
     if config['resume_training']:
         config['output_folder'] = join(config['resume_training_from'])
 
     setup(config, rank, world_size, train=True)
+
+    if Settings.get_number_of_workers() > 1:
+        from torch.nn.parallel import DistributedDataParallel as DDP
 
     torch.manual_seed(Settings.get_global_seed())
 
@@ -87,7 +90,7 @@ def train(rank, config, world_size):
     my_print('Vocab Size Src', vocab_src.vocab_size)
     my_print('Vocab Size Tgt', vocab_tgt.vocab_size)
     
-    train_dataset = Dataset.create_dataset_from_config(config, 'train_set', config['train_src'], config['train_tgt'], vocab_src, vocab_tgt, epoch_split=config['epoch_split', 1])
+    train_dataset = Dataset.create_dataset_from_config(config, 'train_set', config['train_src'], config['train_tgt'], vocab_src, vocab_tgt)
     dev_dataset = Dataset.create_dataset_from_config(config, 'dev_set', config['dev_src'], config['dev_tgt'], vocab_src, vocab_tgt)
 
     Context.add_context('train_dataset', train_dataset)
@@ -101,12 +104,15 @@ def train(rank, config, world_size):
         dev_batch_generator.start()
 
     model = create_model_from_config(config, vocab_src, vocab_tgt)
-    criterion = Score.create_score_from_config(config)
+    model.init_weights()
+    model = model.to(Settings.get_device())
+    model = DDP(model, device_ids=[Settings.rank()])
+
+    criterion = Score.create_score_from_config(config).to(Settings.get_device())
+    criterion = criterion.to(Settings.get_device())
+
     optimizer = create_optimizer_from_config(config, model.parameters())
     lr_scheduler = create_lr_scheduler_from_config(config, optimizer)
-
-    model = model.to(Settings.get_device())
-    criterion = criterion.to(Settings.get_device())
 
     my_print(f'Trainable variables: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
 
@@ -116,7 +122,7 @@ def train(rank, config, world_size):
     Context.add_context('lr_scheduler', lr_scheduler)
 
     checkpoint_manager = CheckpointManager.create_train_checkpoint_manager_from_config(config)
-    checkpoint_manager.restore_or_initialize()
+    checkpoint_manager.restore_if_requested()
 
     trainer = Trainer.create_trainer_from_config(config, train_batch_generator, dev_batch_generator, checkpoint_manager)
 

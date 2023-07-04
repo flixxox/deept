@@ -12,8 +12,13 @@ def register_model(name):
     return register_model_fn
 
 def create_model_from_config(config, vocab_src, vocab_tgt):
+
     if config['model'] in __MODEL_DICT__:
-        return __MODEL_DICT__[config['model']].create_from_config(config, vocab_src, vocab_tgt)
+        from deept.util.debug import my_print
+        model = __MODEL_DICT__[config['model']].create_from_config(config, vocab_src, vocab_tgt)
+        my_print(f'Initializing model weights!')
+        model.init_weights()
+        return model
     else:
         raise ValueError(f'Error! Unrecognized model {config["model"]}!')
 
