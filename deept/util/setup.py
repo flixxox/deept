@@ -37,7 +37,8 @@ def check_and_correct_requested_number_of_gpus(config, train=True):
 def setup(config, rank, world_size, train=True, time=False):
     setup_settings(config, rank, world_size, train, time)
     setup_torch(config)
-    setup_ddp(config)
+    if config['number_of_gpus'] > 0:
+        setup_ddp(config)
 
 def setup_settings(config, rank, world_size, train, time):
 
@@ -89,4 +90,5 @@ def setup_ddp(config):
 
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
+
     dist.init_process_group(rank=Settings.rank(), world_size=Settings.get_number_of_workers()) # Uses nccl for gpu and gloo for cpu communication

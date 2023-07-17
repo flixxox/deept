@@ -183,14 +183,18 @@ class Dataset:
             raise ValueError(f'Unrecognized dataset option {config["dataset"]}')
 
         if Settings.rank() == 0:
+            from deept.util.timer import Timer
             my_print('Loading data pointers on rank 0!')
+            start = Timer.timestamp()
             dataset.load_data_ptrs()
+            end = Timer.timestamp()
+            my_print(f'Loading data pointer took {end-start:4.2f}')
 
             if Settings.get_number_of_workers() > 1:
                 dataset.__assign_to_worker(Settings.rank())
         
         else:
-            print(f'Receiving data pointers on rank {Setting.rank()}!', flush=True)
+            print(f'Receiving data pointers on rank {Settings.rank()}!', flush=True)
             ptrs_tensor, size_tensor = dataset.__receive_data_ptrs_from_main()
             data_prs = dataset.from_tensors_to_tuple_list(ptrs_tensor, size_tensor)
 
@@ -250,7 +254,7 @@ class TranslationDataset(Dataset):
         discarded_count = 0
         with open(self.src_path, "r") as src_file, open(self.tgt_path, "r") as tgt_file:
             for i, (src, tgt) in enumerate(zip(src_file, tgt_file)):
-                _ , keep, size = self.__preprocess(src, tgt)
+                _ , keep, size = self.__preprocess(src, tgt, skip_tokenize=True)
                 if keep:
                     self.data_ptrs.append((i, size))
                 else:
@@ -261,22 +265,27 @@ class TranslationDataset(Dataset):
 
         self.corpus_size = len(self.data_ptrs)
 
-    def __preprocess(self, src, tgt):
+    def __preprocess(self, src, tgt, skip_tokenize=False):
 
         src = src.strip().replace("\n", "").split(" ")
         tgt = tgt.strip().replace("\n", "").split(" ")
-        src = self.vocab_src.tokenize(src)
-        tgt = self.vocab_tgt.tokenize(tgt)
+
+        if skip_tokenize:
+            src = self.vocab_src.tokenize(src)
+            tgt = self.vocab_tgt.tokenize(tgt)
 
         size = len(tgt)+1
         
         if len(src)+2 <= self.maxI and size <= self.maxI:
             keep = True
-
         else:
             if not Settings.is_training():
-                src = self.vocab_src.tokenize([Vocabulary.UNK for _ in range(5)])
-                tgt = self.vocab_tgt.tokenize([Vocabulary.UNK for _ in range(5)])
+                if skip_tokenize:
+                    src = [Vocabulary.UNK for _ in range(5)]
+                    tgt = [Vocabulary.UNK for _ in range(5)]
+                else:
+                    src = self.vocab_src.tokenize([Vocabulary.UNK for _ in range(5)])
+                    tgt = self.vocab_tgt.tokenize([Vocabulary.UNK for _ in range(5)])
                 keep = True
             else:
                 keep = False

@@ -107,19 +107,19 @@ def train(rank, config, world_size):
     model.init_weights()
     model = model.to(Settings.get_device())
     model = DDP(model, device_ids=[Settings.rank()])
+    Context.add_context('model', model)
 
     criterion = Score.create_score_from_config(config).to(Settings.get_device())
     criterion = criterion.to(Settings.get_device())
+    Context.add_context('criterion', criterion)
 
     optimizer = create_optimizer_from_config(config, model.parameters())
+    Context.add_context('optimizer', optimizer)
+
     lr_scheduler = create_lr_scheduler_from_config(config, optimizer)
+    Context.add_context('lr_scheduler', lr_scheduler)
 
     my_print(f'Trainable variables: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
-
-    Context.add_context('model', model)
-    Context.add_context('criterion', criterion)
-    Context.add_context('optimizer', optimizer)
-    Context.add_context('lr_scheduler', lr_scheduler)
 
     checkpoint_manager = CheckpointManager.create_train_checkpoint_manager_from_config(config)
     checkpoint_manager.restore_if_requested()

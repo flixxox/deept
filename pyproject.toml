@@ -9,6 +9,8 @@ torch = {url = "https://download.pytorch.org/whl/cu118/torch-2.0.1%2Bcu118-cp311
 python = "^3.11.4"
 numpy = "^1.25.0"
 pyyaml = "^6.0"
+webdataset = "^0.2.48"
+torchdata = "^0.6.1"
 
 [tool.poetry.dev-dependencies]
 
