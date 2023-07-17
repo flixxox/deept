@@ -53,9 +53,16 @@ def tensorize(batch):
     
     return batch
 
+# General pipeline layout:
+# 1. Generic: Load binary stream
+# 2. User specific: Decode (text, images, audio etc.)
+# 3. Generic: to webdataset -> sharding
+# 4. User specific: pre-processing
+# 5. Generic with user specified len_fn: Batching
+# 6. User specific: Collate
 
 pipe = (
-    dp.iter.FileLister(root='/home/fschmidt/tmp/data/webdataset', masks='test*.tar', recursive=False, abspath=True)
+    dp.iter.FileLister(root='/home/fschmidt/data/iwslt/de-en/webdataset', masks='train.tar', recursive=False, abspath=True)
     .shuffle(buffer_size=10000) # shuffle shards
     .open_files(mode="b")
     .load_from_tar()
@@ -75,4 +82,4 @@ dl = DataLoader2(pipe, reading_service=rs)
 
 sum_len = 0
 for x in dl:
-    sum_len += len(x)
+    print(x)
