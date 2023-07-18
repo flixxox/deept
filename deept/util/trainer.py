@@ -46,15 +46,14 @@ class Trainer:
 
         while self.checkpoint_manager.keep_going():
 
-            for _, (src, tgt, out), total_steps in self.train_batch_generator.generate_batches():
+            for idx, data in self.train_batch_generator.generate_batches():
 
-                assert len(src) == len(tgt) == len(out) == self.update_freq
+                assert len(data) == self.update_freq
 
-                L = self.train_step(src, tgt, out)
+                L = self.train_step(data)
 
                 if self.checkpoint_manager.do_checkpoint_after_step():
-                    with torch.no_grad():
-                        self.do_checkpoint()
+                    self.do_checkpoint()
 
                     if not self.checkpoint_manager.keep_going():
                         return
@@ -63,38 +62,38 @@ class Trainer:
                 self.do_checkpoint()
     
     def do_checkpoint(self):
+        with torch.no_grad():
+            time_passed_s = self.checkpoint_manager.timer_end()
+            checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
 
-        time_passed_s = self.checkpoint_manager.timer_end()
-        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
+            train_ce, train_ce_smooth = self.criterion.average_and_reset()
+            train_ppl, train_ppl_smooth = self.__calculate_ppl(train_ce, train_ce_smooth)
 
-        train_ce, train_ce_smooth = self.criterion.average_and_reset()
-        train_ppl, train_ppl_smooth = self.__calculate_ppl(train_ce, train_ce_smooth)
+            to_print = {
+                'ce': train_ce,
+                'ce_smooth': train_ce_smooth,
+                'ppl': train_ppl,
+                'ppl_smooth': train_ppl_smooth,
+                'train_steps': self.checkpoint_manager.step_count-1
+            }
 
-        to_print = {
-            'ce': train_ce,
-            'ce_smooth': train_ce_smooth,
-            'ppl': train_ppl,
-            'ppl_smooth': train_ppl_smooth,
-            'train_steps': self.checkpoint_manager.step_count-1
-        }
+            print_summary(True, checkpoint_number, **to_print)
 
-        print_summary(True, checkpoint_number, **to_print)
+            dev_ppl = self.eval(checkpoint_number)
 
-        dev_ppl = self.eval(checkpoint_number)
+            print_memory_usage()
+            my_print(f'Training checkpoint took: {time_passed_s:4.2f}s, {time_passed_s / 60:4.2f}min')
 
-        print_memory_usage()
-        my_print(f'Training checkpoint took: {time_passed_s:4.2f}s, {time_passed_s / 60:4.2f}min')
+            self.checkpoint_manager.save(dev_ppl)
 
-        self.checkpoint_manager.save(dev_ppl)
+            Score.write_score_to_file(self.numbers_dir, 'train_ppl', train_ppl)
+            Score.write_score_to_file(self.numbers_dir, 'dev_ppl',   dev_ppl)
 
-        Score.write_score_to_file(self.numbers_dir, 'train_ppl', train_ppl)
-        Score.write_score_to_file(self.numbers_dir, 'dev_ppl',   dev_ppl)
+            if Settings.do_timing():
+                model_time = Timer.print_timing_summary(self.model)
+                ContextTimer.print_summary(model_time)
 
-        if Settings.do_timing():
-            model_time = Timer.print_timing_summary(self.model)
-            ContextTimer.print_summary(model_time)
-
-        self.checkpoint_manager.timer_start()
+            self.checkpoint_manager.timer_start()
 
     def eval(self, checkpoint_number):
 
@@ -133,16 +132,16 @@ class Trainer:
 
         return ppl, ppl_smooth
 
-    def train_step(self, src, tgt, out):
+    def train_step(self, data):
 
         L_accum = 0
 
         with self.model.no_sync():
-            for i in range(len(src)-1):
-                L = self.train_ministep(src[i], tgt[i], out[i])
+            for i in range(len(data)-1):
+                L = self.train_ministep(data[i])
                 L_accum += L
         
-        L = self.train_ministep(src[-1], tgt[-1], out[-1])
+        L = self.train_ministep(data[-1])
         L_accum += L
 
         with ContextTimer('average_gradients'):
@@ -160,16 +159,15 @@ class Trainer:
 
         return L_accum
     
-    def train_ministep(self, src, tgt, out):
+    def train_ministep(self, data):
 
-        src = src.to(Settings.get_device())
-        tgt = tgt.to(Settings.get_device())
-        out = out.to(Settings.get_device())
+        for tensor in data:
+            tensor.to(Settings.get_device())
 
         with ContextTimer('model_mask_creation'):
-            masks, out_mask = self.model.module.create_masks(src, out)
+            masks, out_mask = self.model.module.create_masks(*data)
 
-        output, _ = self.model(src, tgt, **masks)
+        output, _ = self.model(*data, **masks)
 
         with ContextTimer('criterion'):
             _, ce_smooth, L_ce = self.criterion(output, out, out_mask=out_mask)
