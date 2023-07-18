@@ -33,7 +33,7 @@ def parse_cli_arguments():
 
     parser.add_argument('--config', type=str, required=True, 
         help='The path to the config.yaml which contains all user defined parameters.')
-    parser.add_argument('--user-code', type=str, required=True,
+    parser.add_argument('--user-code', type=str, nargs='+', required=True,
         help="""A path to the directory containing the user code.
             The directory must be named 'deept_user'.
             All <NAME>.py files in this directory will be imported as deept_user.<NAME>.

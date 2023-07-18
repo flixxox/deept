@@ -5,18 +5,53 @@ from deept.util.debug import my_print
 from deept.util.globals import Settings
 
 
-def import_user_code(path_to_user_code):
+def import_user_code(paths_to_user_code):
 
+    import sys
     import importlib
     from os import listdir
-    from os.path import isdir
+    from os.path import isdir, join
 
-    assert isdir(path_to_user_code)
+    def __import_file(module):
+        if module.startswith('.'):
+            module = module[1:]
+        if module.endswith('.'):
+            module = module[:-1]
+        module = importlib.import_module(module)
 
-    for file in listdir(path_to_user_code):
-        if file.endswith('.py') and not file.startswith('_'):
-            module_name = file[:file.find('.py')]
-            module = importlib.import_module('deept_user.' + module_name)
+    def __can_be_imported(filename):
+        return (filename.endswith('.py')
+            and not filename.startswith('.')
+            and not filename.startswith('_'))
+
+    def __has_init_file(path):
+        for filename in listdir(path):
+            if filename == '__init__.py':
+                return True
+        return False
+
+    def __import_files_recursive(prefix, path):
+        dir_has_init = __has_init_file(path)
+        for filename in listdir(path):
+            filepath = join(path, filename)
+            if isdir(filepath) and not filename.startswith('.') and not filename.startswith('_'):
+                __import_files_recursive(prefix + f'.{filename}', filepath)
+            else:
+                if dir_has_init and __can_be_imported(filename):
+                    __import_file(prefix + f'.{filename.replace(".py", "")}')
+    
+    if not isinstance(paths_to_user_code, list):
+        paths_to_user_code = list(paths_to_user_code)
+
+    for path in paths_to_user_code:
+        
+        if not isdir(path):
+            raise ValueError(f'Error! User code directory not found: {path}!')
+
+        if path.endswith('/'):
+            path = path[:-1]
+
+        __import_files_recursive('', path)
 
 def check_and_correct_requested_number_of_gpus(config, train=True):
 
@@ -27,7 +62,8 @@ def check_and_correct_requested_number_of_gpus(config, train=True):
 
     config['number_of_gpus'] = max(0, config['number_of_gpus'])
 
-    assert config['number_of_gpus'] <= num_gpus_avail, f'Not enough GPUs available! Avail: {num_gpus_avail}, Requested {config["number_of_gpus"]}'
+    assert (config['number_of_gpus'] <= num_gpus_avail, 
+        f'Not enough GPUs available! Avail: {num_gpus_avail}, Requested {config["number_of_gpus"]}')
 
     if not train: # We do not support multi-gpu for search
         config['number_of_gpus'] = min(1, config['number_of_gpus'])
@@ -57,7 +93,14 @@ def setup_settings(config, rank, world_size, train, time):
         Settings.set_device(f'cuda:{Settings.rank()}')
 
 def setup_directories(config):
+    
     from os.path import join
+
+    def __maybe_create_dir(dir):
+        from os import mkdir
+        from os.path import isdir
+        if not isdir(dir) and Settings.rank() == 0:
+            mkdir(checkpoint_dir)
 
     Settings.add_dir('output_dir', config['output_folder'])
     Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
@@ -65,12 +108,6 @@ def setup_directories(config):
 
     __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
     __maybe_create_dir(Settings.get_dir('numbers_dir'))
-
-def __maybe_create_dir(dir):
-    from os import mkdir
-    from os.path import isdir
-    if not isdir(dir) and Settings.rank() == 0:
-        mkdir(checkpoint_dir)
 
 def setup_torch(config):
     if config['deterministic', False]:
@@ -91,4 +128,7 @@ def setup_ddp(config):
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
 
-    dist.init_process_group(rank=Settings.rank(), world_size=Settings.get_number_of_workers()) # Uses nccl for gpu and gloo for cpu communication
+    dist.init_process_group(
+        rank=Settings.rank(),
+        world_size=Settings.get_number_of_workers()
+    ) # Uses nccl for gpu and gloo for cpu communication
