@@ -8,6 +8,7 @@ from deept.util.config import Config
 from deept.model.scores import Score
 from deept.util.trainer import Trainer
 from deept.util.globals import Settings, Context
+from deept.util.data import create_datapipe_from_config
 from deept.util.debug import my_print, print_memory_usage
 from deept.util.checkpoint_manager import CheckpointManager
 from deept.model.model import create_model_from_config
@@ -17,13 +18,6 @@ from deept.util.setup import (
     setup,
     import_user_code,
     check_and_correct_requested_number_of_gpus
-)
-from deept.util.data import (
-    Vocabulary,
-    Dataset,
-    BatchGenerator,
-    BucketingBatchAlgorithm,
-    LinearBatchAlgorithm
 )
 
 
@@ -83,25 +77,9 @@ def train(rank, config, world_size):
         from torch.nn.parallel import DistributedDataParallel as DDP
 
     torch.manual_seed(Settings.get_global_seed())
-
-    vocab_src = Vocabulary.create_vocab(config['vocab_src'])
-    vocab_tgt = Vocabulary.create_vocab(config['vocab_tgt'])
-
-    my_print('Vocab Size Src', vocab_src.vocab_size)
-    my_print('Vocab Size Tgt', vocab_tgt.vocab_size)
     
-    train_dataset = Dataset.create_dataset_from_config(config, 'train_set', config['train_src'], config['train_tgt'], vocab_src, vocab_tgt)
-    dev_dataset = Dataset.create_dataset_from_config(config, 'dev_set', config['dev_src'], config['dev_tgt'], vocab_src, vocab_tgt)
-
-    Context.add_context('train_dataset', train_dataset)
-    Context.add_context('dev_dataset', dev_dataset)
-
-    train_batch_generator = BatchGenerator.create_batch_generator_from_config(config, Context['train_dataset'], BucketingBatchAlgorithm, chunking=config['update_freq'])
-    dev_batch_generator = BatchGenerator.create_batch_generator_from_config(config, Context['dev_dataset'], LinearBatchAlgorithm)
-
-    if config['threaded_data_loading']:
-        train_batch_generator.start()
-        dev_batch_generator.start()
+    train_datapipe = create_datapipe_from_config(config, train=True)
+    dev_datapipe = create_datapipe_from_config(config, train=False)
 
     model = create_model_from_config(config, vocab_src, vocab_tgt)
     model.init_weights()
@@ -124,16 +102,12 @@ def train(rank, config, world_size):
     checkpoint_manager = CheckpointManager.create_train_checkpoint_manager_from_config(config)
     checkpoint_manager.restore_if_requested()
 
-    trainer = Trainer.create_trainer_from_config(config, train_batch_generator, dev_batch_generator, checkpoint_manager)
+    trainer = Trainer.create_trainer_from_config(config, train_datapipe, dev_datapipe, checkpoint_manager)
 
     print_memory_usage()
     my_print(f'Start training at checkpoint {checkpoint_manager.get_checkpoint_number()}!')
 
     trainer.train()
-
-    if config['threaded_data_loading']:
-        train_batch_generator.stop()
-        dev_batch_generator.stop()
 
     if config['average_last_checkpoints', False]:
         checkpoint_manager.average_last_N_checkpoints(config['checkpoints_to_average'])
