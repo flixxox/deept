@@ -1,7 +1,7 @@
 
 import torch
 
-__LR_SCHEDULER_DICT__ = dict()
+__LR_SCHEDULER_DICT__ = {}
 
 def register_lr_scheduler(name):
     def register_lr_scheduler_fn(cls):

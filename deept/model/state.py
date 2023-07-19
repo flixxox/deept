@@ -61,13 +61,12 @@ class DynamicState(nn.Module):
     In search, it dynamically handles a state.
     """
 
-    def __init__(self, time_dim=1, stepwise=True, dtype=torch.float32):
+    def __init__(self, time_dim=1, stepwise=True):
         super().__init__()
 
         self.stepwise = stepwise
         
         if not Settings.is_training() and stepwise:
-            self.dtype = dtype
             self.time_dim = time_dim
             self.cache = None
             self.prev_mask = None

@@ -22,15 +22,13 @@ class Trainer:
         self.lr_scheduler = Context['lr_scheduler']
 
     @staticmethod
-    def create_trainer_from_config(config, train_batch_generator, dev_batch_generator, checkpoint_manager):
+    def create_trainer_from_config(config, train_datapipe, dev_datapipe, checkpoint_manager):
 
         trainer = Trainer(
-            train_batch_generator = train_batch_generator,
-            dev_batch_generator = dev_batch_generator,
+            train_datapipe = train_datapipe,
+            dev_datapipe = dev_datapipe,
             checkpoint_manager = checkpoint_manager,
-            batch_size = config['batch_size'],
             update_freq = config['update_freq'],
-            max_sentence_length = config['max_sentence_length'],
             allow_none_type_gradients = config['allow_none_type_gradients', False],
             deterministic = config['deterministic', False]
         )
@@ -46,11 +44,11 @@ class Trainer:
 
         while self.checkpoint_manager.keep_going():
 
-            for _, (src, tgt, out), total_steps in self.train_batch_generator.generate_batches():
+            for _, data in self.train_datapipe:
 
-                assert len(src) == len(tgt) == len(out) == self.update_freq
+                assert len(data) == self.update_freq
 
-                L = self.train_step(src, tgt, out)
+                L = self.train_step(data)
 
                 if self.checkpoint_manager.do_checkpoint_after_step():
                     with torch.no_grad():
@@ -100,9 +98,9 @@ class Trainer:
 
         self.model.eval()
 
-        for _, (src, tgt, out), total_steps in self.dev_batch_generator.generate_batches():
+        for _, data in self.dev_datapipe:
 
-            ce, ce_smooth, _ = self.eval_step(src, tgt, out)
+            ce, ce_smooth, _ = self.eval_step(data)
 
         ce, ce_smooth = self.criterion.average_and_reset()
         ppl, ppl_smooth = self.__calculate_ppl(ce, ce_smooth)
@@ -133,16 +131,16 @@ class Trainer:
 
         return ppl, ppl_smooth
 
-    def train_step(self, src, tgt, out):
+    def train_step(self, data):
 
         L_accum = 0
 
         with self.model.no_sync():
-            for i in range(len(src)-1):
-                L = self.train_ministep(src[i], tgt[i], out[i])
+            for i in range(len(data)-1):
+                L = self.train_ministep(data[i])
                 L_accum += L
         
-        L = self.train_ministep(src[-1], tgt[-1], out[-1])
+        L = self.train_ministep(data[-1])
         L_accum += L
 
         with ContextTimer('average_gradients'):
@@ -160,19 +158,18 @@ class Trainer:
 
         return L_accum
     
-    def train_ministep(self, src, tgt, out):
+    def train_ministep(self, data):
 
-        src = src.to(Settings.get_device())
-        tgt = tgt.to(Settings.get_device())
-        out = out.to(Settings.get_device())
+        for i in range(len(data)):
+            data[i] =  data[i].to(Settings.get_device())
 
         with ContextTimer('model_mask_creation'):
-            masks, out_mask = self.model.module.create_masks(src, out)
+            masks, out_mask = self.model.module.create_masks(*data)
 
-        output, _ = self.model(src, tgt, **masks)
+        output, _ = self.model(*data, **masks)
 
         with ContextTimer('criterion'):
-            _, ce_smooth, L_ce = self.criterion(output, out, out_mask=out_mask)
+            _, ce_smooth, L_ce = self.criterion(output, *data, out_mask=out_mask)
 
         with ContextTimer('backpropagation'):
             ce_smooth.backward()
@@ -183,7 +180,7 @@ class Trainer:
 
         return L_ce
 
-    def eval_step(self, src, tgt, out):
+    def eval_step(self, data):
         
         src = src.to(Settings.get_device())
         tgt = tgt.to(Settings.get_device())

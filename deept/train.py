@@ -4,16 +4,19 @@ from os.path import join
 
 import torch
 
-from deept.util.config import Config
 from deept.model.scores import Score
 from deept.util.trainer import Trainer
 from deept.util.globals import Settings, Context
-from deept.util.data import create_datapipe_from_config
+from deept.util.data import create_dp_from_config
 from deept.util.debug import my_print, print_memory_usage
 from deept.util.checkpoint_manager import CheckpointManager
 from deept.model.model import create_model_from_config
 from deept.model.optimizer import create_optimizer_from_config
 from deept.model.lr_scheduler import create_lr_scheduler_from_config
+from deept.util.config import (
+    Config,
+    DeepTConfigDescription
+)
 from deept.util.setup import (
     setup,
     import_user_code,
@@ -67,6 +70,9 @@ def start(config):
 def train(rank, config, world_size):
 
     import_user_code(config['user_code'])
+    
+    # We do it again to be uptodate with user imports
+    DeepTConfigDescription.create_deept_config_description()
 
     if config['resume_training']:
         config['output_folder'] = join(config['resume_training_from'])
@@ -78,8 +84,16 @@ def train(rank, config, world_size):
 
     torch.manual_seed(Settings.get_global_seed())
     
-    train_datapipe = create_datapipe_from_config(config, train=True)
-    dev_datapipe = create_datapipe_from_config(config, train=False)
+    train_datapipe = create_dp_from_config(config, 
+        config['data_train_root'],
+        config['data_train_mask'],
+        bucket_batch=True
+    )
+    dev_datapipe = create_dp_from_config(config,
+        config['data_train_root'],
+        config['data_train_mask'],
+        bucket_batch=False
+    )
 
     model = create_model_from_config(config, vocab_src, vocab_tgt)
     model.init_weights()
@@ -102,7 +116,11 @@ def train(rank, config, world_size):
     checkpoint_manager = CheckpointManager.create_train_checkpoint_manager_from_config(config)
     checkpoint_manager.restore_if_requested()
 
-    trainer = Trainer.create_trainer_from_config(config, train_datapipe, dev_datapipe, checkpoint_manager)
+    trainer = Trainer.create_trainer_from_config(config,
+        train_datapipe,
+        dev_datapipe,
+        checkpoint_manager
+    )
 
     print_memory_usage()
     my_print(f'Start training at checkpoint {checkpoint_manager.get_checkpoint_number()}!')
@@ -123,10 +141,12 @@ def train(rank, config, world_size):
 
 if __name__ == '__main__':
 
-    my_print(''.center(40, '-'))
-    my_print(' Hi! '.center(40, '-'))
-    my_print(' Script: train.py '.center(40, '-'))
-    my_print(''.center(40, '-'))
+    my_print(''.center(60, '-'))
+    my_print(' Hi! '.center(60, '-'))
+    my_print(' Script: train.py '.center(60, '-'))
+    my_print(''.center(60, '-'))
+
+    DeepTConfigDescription.create_deept_config_description()
 
     args = parse_cli_arguments()
 

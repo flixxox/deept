@@ -1,7 +1,7 @@
 
 import torch
 
-__OPTIMIZER_DICT__ = dict()
+__OPTIMIZER_DICT__ = {}
 
 def create_optimizer_from_config(config, model_params):
     if config['optimizer'] in __OPTIMIZER_DICT__:

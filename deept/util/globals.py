@@ -4,6 +4,7 @@ class Context:
 
     __CONTEXT = {}
 
+    @staticmethod
     def add_context(key, obj):
         if key not in Context.__CONTEXT:
             Context.__CONTEXT[key] = obj
@@ -11,8 +12,14 @@ class Context:
             from deept.util.debug import my_print
             my_print(f'Warning! Context {key} is already set. Skipping!')
 
+    @staticmethod
+    def print_all_context_elements():
+        for k, v in Context.__CONTEXT.items():
+            print(k, v)
+
     def __class_getitem__(cls, key):
         return Context.__CONTEXT[key]
+
 
 
 class Settings:
@@ -105,5 +112,4 @@ class Settings:
     @staticmethod
     def get_dir(name):
         return Settings.__DIRS[name]
-
 
