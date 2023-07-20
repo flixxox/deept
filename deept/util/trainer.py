@@ -51,8 +51,7 @@ class Trainer:
                 L = self.train_step(data)
 
                 if self.checkpoint_manager.do_checkpoint_after_step():
-                    with torch.no_grad():
-                        self.do_checkpoint()
+                    self.do_checkpoint()
 
                     if not self.checkpoint_manager.keep_going():
                         return
@@ -61,38 +60,38 @@ class Trainer:
                 self.do_checkpoint()
     
     def do_checkpoint(self):
+        with torch.no_grad():
+            time_passed_s = self.checkpoint_manager.timer_end()
+            checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
 
-        time_passed_s = self.checkpoint_manager.timer_end()
-        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
+            train_ce, train_ce_smooth = self.criterion.average_and_reset()
+            train_ppl, train_ppl_smooth = self.__calculate_ppl(train_ce, train_ce_smooth)
 
-        train_ce, train_ce_smooth = self.criterion.average_and_reset()
-        train_ppl, train_ppl_smooth = self.__calculate_ppl(train_ce, train_ce_smooth)
+            to_print = {
+                'ce': train_ce,
+                'ce_smooth': train_ce_smooth,
+                'ppl': train_ppl,
+                'ppl_smooth': train_ppl_smooth,
+                'train_steps': self.checkpoint_manager.step_count-1
+            }
 
-        to_print = {
-            'ce': train_ce,
-            'ce_smooth': train_ce_smooth,
-            'ppl': train_ppl,
-            'ppl_smooth': train_ppl_smooth,
-            'train_steps': self.checkpoint_manager.step_count-1
-        }
+            print_summary(True, checkpoint_number, **to_print)
 
-        print_summary(True, checkpoint_number, **to_print)
+            dev_ppl = self.eval(checkpoint_number)
 
-        dev_ppl = self.eval(checkpoint_number)
+            print_memory_usage()
+            my_print(f'Training checkpoint took: {time_passed_s:4.2f}s, {time_passed_s / 60:4.2f}min')
 
-        print_memory_usage()
-        my_print(f'Training checkpoint took: {time_passed_s:4.2f}s, {time_passed_s / 60:4.2f}min')
+            self.checkpoint_manager.save(dev_ppl)
 
-        self.checkpoint_manager.save(dev_ppl)
+            Score.write_score_to_file(self.numbers_dir, 'train_ppl', train_ppl)
+            Score.write_score_to_file(self.numbers_dir, 'dev_ppl',   dev_ppl)
 
-        Score.write_score_to_file(self.numbers_dir, 'train_ppl', train_ppl)
-        Score.write_score_to_file(self.numbers_dir, 'dev_ppl',   dev_ppl)
+            if Settings.do_timing():
+                model_time = Timer.print_timing_summary(self.model)
+                ContextTimer.print_summary(model_time)
 
-        if Settings.do_timing():
-            model_time = Timer.print_timing_summary(self.model)
-            ContextTimer.print_summary(model_time)
-
-        self.checkpoint_manager.timer_start()
+            self.checkpoint_manager.timer_start()
 
     def eval(self, checkpoint_number):
 

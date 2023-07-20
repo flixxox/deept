@@ -20,7 +20,6 @@ def register_optimizer(name):
 
 @register_optimizer('Adam')
 class Adam:
-
     @staticmethod
     def create_from_config(config, model_params):
         return torch.optim.Adam(
