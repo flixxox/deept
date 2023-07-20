@@ -82,10 +82,10 @@ def create_dp_from_config(config, data_root, data_mask, bucket_batch=False):
     pipe = create_preprocessing_dp_from_config(config, pipe)
     len_fn = get_len_fn(config)
 
-    # pipe = (
-    #     pipe.max_token_bucketize(max_token_count=100, len_fn=len_fn, include_padding=False)
-    #     .shuffle(buffer_size=30)
-    # )
+    pipe = (
+        pipe.max_token_bucketize(max_token_count=config['batch_size'], len_fn=len_fn, include_padding=False)
+        .shuffle(buffer_size=30)
+    )
 
     # pipe = create_collating_dp_from_config(config)
 
@@ -302,6 +302,79 @@ class MTVocabulary:
 
 @register_dp_preprocessing('mt_preprocess')
 class MTPreprocesserIterDataPipe(IterDataPipe):
+
+    def __init__(self, source_dp, vocab_src, vocab_tgt):
+        super().__init__()
+        self.source_dp = source_dp
+        self.vocab_src = vocab_src
+        self.vocab_tgt = vocab_tgt
+
+    @staticmethod
+    def create_from_config(config, source_dp):
+
+        from deept.util.globals import Context
+
+        vocab_src = MTVocabulary.create_vocab(config['vocab_src'])
+        vocab_tgt = MTVocabulary.create_vocab(config['vocab_tgt'])
+
+        Context.add_context('vocab_src', vocab_src)
+        Context.add_context('vocab_tgt', vocab_tgt)
+
+        my_print(f'Vocab size source {vocab_src.vocab_size}!')
+        my_print(f'Vocab size target {vocab_tgt.vocab_size}!')
+
+        return MTPreprocesserIterDataPipe(
+            source_dp,
+            vocab_src,
+            vocab_tgt
+        )
+
+    def __iter__(self):
+        for item in self.source_dp:
+            yield self.mt_preprocess(self.normalize_keys(item))
+
+    def normalize_keys(self, item):
+        
+        assert isinstance(item, dict), """The webdataset format presets that every sample
+            is a dictionary."""
+
+        assert '__key__' in item.keys(), """The webdataset format presets that every sample
+            is a dictionary and contains a __key__ entry."""
+
+        idx = item['__key__'].split('/')[-1]
+
+        assert 'sample' in idx, """At the moment we expect you to name each sample of the webdataset sampleXXXXX."""
+
+        idx = int(idx.split('/')[-1].split('sample')[-1])
+
+        normalized_dict = {
+            '__key__': idx
+        }
+
+        for k, v in item.items():
+            if 'source' in k:
+                normalized_dict['src'] = v
+            elif 'target' in k:
+                normalized_dict['tgt'] = v
+
+        return normalized_dict
+
+    def mt_preprocess(self, item):
+
+        item['src'] = item['src'].strip().replace("\n", "").split(" ")
+        item['tgt'] = item['tgt'].strip().replace("\n", "").split(" ")
+
+        item['src'] = self.vocab_src.tokenize(item['src'])
+        item['tgt'] = self.vocab_src.tokenize(item['tgt'])
+
+        return item
+
+    def __len__(self):
+        raise NotImplementedError('Error! Do not invoke len(datapipe).')
+
+
+@register_dp_preprocessing('mt_collate')
+class MTCollaterIterDataPipe(IterDataPipe):
 
     def __init__(self, source_dp, vocab_src, vocab_tgt):
         super().__init__()

@@ -117,6 +117,13 @@ class DeepTConfigDescription(object):
             accepted_values = dt_data.get_all_dp_overwrite_keys()
         )
 
+        __CONFIG_DESC__['batch_size'] = ConfigSpec(
+            description = """Specify the batch_size for training here. For search we will use 'batch_size_search'.
+            The batch_size is given in whatever quantity you specify with the length function of 'data_len_fn'.""",
+            required = False,
+            accepted_values = dt_data.get_all_dp_overwrite_keys()
+        )
+
     @staticmethod
     def has_key(key):
         return key in DeepTConfigDescription.__CONFIG_DESC__

@@ -21,7 +21,6 @@ class Context:
         return Context.__CONTEXT[key]
 
 
-
 class Settings:
     """Internal config variables."""
 

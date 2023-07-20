@@ -16,7 +16,7 @@ config = Config.parse_config({'config': config_file})
 config['output_folder'] = ''
 config['number_of_gpus'] = 0
 
-setup(config, 0, 1, train=False)
+setup(config, 0, 1, train=False, create_directories=False)
 
 train_datapipe = create_dp_from_config(config,
     config['data_train_root'],

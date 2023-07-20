@@ -74,10 +74,10 @@ def train(rank, config, world_size):
     # We do it again to be uptodate with user imports
     DeepTConfigDescription.create_deept_config_description()
 
+    setup(config, rank, world_size, train=True)
+
     if config['resume_training']:
         config['output_folder'] = join(config['resume_training_from'])
-
-    setup(config, rank, world_size, train=True)
 
     if Settings.get_number_of_workers() > 1:
         from torch.nn.parallel import DistributedDataParallel as DDP

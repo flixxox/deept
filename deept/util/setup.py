@@ -34,16 +34,15 @@ def check_and_correct_requested_number_of_gpus(config, train=True):
 
     my_print(f'Requested number of GPUs after check: {config["number_of_gpus"]}')
 
-def setup(config, rank, world_size, train=True, time=False):
+def setup(config, rank, world_size, train=True, time=False, create_directories=True):
+    if create_directories:
+        setup_directories(config)
     setup_settings(config, rank, world_size, train, time)
     setup_torch(config)
     if config['number_of_gpus'] > 0:
         setup_ddp(config)
 
 def setup_settings(config, rank, world_size, train, time):
-
-    setup_directories(config)
-
     Settings.set_rank(rank)
     Settings.set_number_of_workers(world_size)
     Settings.set_train_flag(train)
