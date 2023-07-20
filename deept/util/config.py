@@ -60,7 +60,7 @@ class DeepTConfigDescription(object):
 
         __CONFIG_DESC__['data_train_mask'] = ConfigSpec(
             description = """A mask that selects files within the 'data_train_root' directory as used for training.
-            Make sure that it specifies .tar files.""",
+                Make sure that it specifies .tar files.""",
             required = False,
             accepted_values = 'For example: "*.tar", "train*.tar", "train.tar".'
         )
@@ -73,55 +73,88 @@ class DeepTConfigDescription(object):
 
         __CONFIG_DESC__['data_dev_mask'] = ConfigSpec(
             description = """A mask that selects files within the 'data_dev_root' directory as used for evaluation.
-            Make sure that it specifies .tar files.""",
+                Make sure that it specifies .tar files.""",
             required = False,
             accepted_values = 'For example: "*.tar", "dev*.tar", "dev.tar".'
         )
 
         __CONFIG_DESC__['data_decoding'] = ConfigSpec(
             description = """Here you can specify the datapipe that decodes the binary and uncompressed datastream from the webdataset.
-            You can register your own decoding datapipe with '@register_dp_decoding(YOUR_KEY)'.""",
+                You can register your own decoding datapipe with '@register_dp_decoding(YOUR_KEY)'.""",
             required = False,
             accepted_values = dt_data.get_all_dp_decoding_keys()
         )
 
         __CONFIG_DESC__['data_preprocess'] = ConfigSpec(
             description = """Here you specify the key of the preprocessing data pipeline. It takes as input the raw data (already decoded) and
-            can perform some arbitrary preprocessing. For example, in machine translation this refers to appending special symbols and tokenizing.
-            Note that the returned items should not be padded or coverted to tensors yet.
-            With '@register_dp_preprocessing(YOUR_KEY)' you can register your own preprocessing pipeline.""",
+                can perform some arbitrary preprocessing. For example, in machine translation this refers to appending special symbols and tokenizing.
+                Note that the returned items should not be padded or coverted to tensors yet.
+                With '@register_dp_preprocessing(YOUR_KEY)' you can register your own preprocessing pipeline.""",
             required = False,
             accepted_values = dt_data.get_all_dp_preprocessing_keys()
         )
 
         __CONFIG_DESC__['data_collate'] = ConfigSpec(
-            description = """Todo""",
+            description = """Here you specify the data collating  pipeline. It takes as input the batched but not padded nor tensorized items as lists.
+                It should map each list to the corresponding tensor.""",
             required = False,
+            accepted_values = dt_data.get_all_dp_collate_keys()
         )
 
         __CONFIG_DESC__['data_len_fn'] = ConfigSpec(
             description = """With this parameter you specify the size of one data sample used for batching. 
-            The len_fn takes as input one data sample and returns an integer that represents the size of that sample.
-            Whatever you return here will be the quantity of 'batch_size'.
-            You can register your own length function with '@register_len_fn(YOUR_KEY)'.""",
+                The len_fn takes as input one data sample and returns an integer that represents the size of that sample.
+                Whatever you return here will be the quantity of 'batch_size'.
+                You can register your own length function with '@register_len_fn(YOUR_KEY)'.""",
             required = False,
             accepted_values = dt_data.get_all_len_fn_keys()
         )
 
         __CONFIG_DESC__['data_dp_overwrite'] = ConfigSpec(
             description = """Normally we use a generic webdataset datapipe and insert user-specific datapipes along the way.
-            If you want to only use your own datapipe register it with "@register_dp_overwrite(YOUR_NAME)" and implement the static function
-            create_from_config(config). 'data_dp_overwrite' refers to the datapipe key, i.e. 'YOUR_NAME'.
-            If 'data_dp_overwrite' is not specified, you must specify the parameters: "data_decoding", "data_preprocess" and "data_collate".""",
+                If you want to only use your own datapipe register it with "@register_dp_overwrite(YOUR_NAME)" and implement the static function
+                create_from_config(config). 'data_dp_overwrite' refers to the datapipe key, i.e. 'YOUR_NAME'.
+                If 'data_dp_overwrite' is not specified, you must specify the parameters: "data_decoding", "data_preprocess" and "data_collate".""",
             required = False,
             accepted_values = dt_data.get_all_dp_overwrite_keys()
         )
 
         __CONFIG_DESC__['batch_size'] = ConfigSpec(
             description = """Specify the batch_size for training here. For search we will use 'batch_size_search'.
-            The batch_size is given in whatever quantity you specify with the length function of 'data_len_fn'.""",
+                The batch_size is given in whatever quantity you return within length function of 'data_len_fn'.""",
+            required = True,
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
+        )
+
+        __CONFIG_DESC__['min_sample_size'] = ConfigSpec(
+            description = """The smallest size a data sample should have. If a data sample is smaller it will be discarded.
+                Given in the quantity returned by 'data_len_fn'.""",
             required = False,
-            accepted_values = dt_data.get_all_dp_overwrite_keys()
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
+        )
+
+        __CONFIG_DESC__['max_sample_size'] = ConfigSpec(
+            description = """The largest size a data sample should have. If a data sample is larger it will be discarded.
+                Given in the quantity returned by 'data_len_fn'.""",
+            required = False,
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
+        )
+
+        __CONFIG_DESC__['buffer_size_bucketing'] = ConfigSpec(
+            description = """The bucketizer buffers these many samples. Within this buffer the sentences are sorted.
+            To control variability of batches keep the buffer size sufficiently small. Default=1000.
+            It allows to control the tradeoff between sorting and randomness. If the buffer size is small batches will be
+            more random. If the buffer size is large batches are well sorted. 
+            See: https://pytorch.org/data/main/generated/torchdata.datapipes.iter.MaxTokenBucketizer.html""",
+            required = False,
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
+        )
+
+        __CONFIG_DESC__['buffer_size_batch_shuffling'] = ConfigSpec(
+            description = """The buffer size of the last shuffling operation. These many batches will be buffered and shuffled.
+            Note that all those batches need to be buffered in RAM for each worker.""",
+            required = False,
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
         )
 
     @staticmethod
@@ -187,21 +220,21 @@ class Config:
 
     def __getitem__(self, key):
 
-        default = None
-
         if isinstance(key, tuple):
+            
             assert len(key) == 2
+
             default = key[1]
             key = key[0]
 
-        if default is None:
-            self.assert_has_key(key)
-            return self.config[key]
-        else:
             if self.has_key(key):    
                 return self.config[key]
             else:
                 return default
+
+        else:
+            self.assert_has_key(key)
+            return self.config[key]
 
     def __setitem__(self, key, value):
         self.config[key] = value

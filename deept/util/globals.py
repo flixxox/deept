@@ -17,6 +17,10 @@ class Context:
         for k, v in Context.__CONTEXT.items():
             print(k, v)
 
+    @staticmethod
+    def has_context(key):
+        return key in Context.__CONTEXT
+
     def __class_getitem__(cls, key):
         return Context.__CONTEXT[key]
 

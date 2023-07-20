@@ -3,7 +3,38 @@ import torch
 
 from deept.util.debug import my_print
 from deept.util.globals import Settings
+from deept.util.config import DeepTConfigDescription
 
+
+def check_and_correct_requested_number_of_gpus(config, train=True):
+
+    num_gpus_avail = torch.cuda.device_count()
+
+    my_print(f'Number of GPUs available: {num_gpus_avail}')
+    my_print('Available devices:', [torch.cuda.get_device_name(i) for i in range(num_gpus_avail)])
+
+    config['number_of_gpus'] = max(0, config['number_of_gpus'])
+
+    assert (config['number_of_gpus'] <= num_gpus_avail, 
+        f'Not enough GPUs available! Avail: {num_gpus_avail}, Requested {config["number_of_gpus"]}')
+
+    if not train: # We do not support multi-gpu for search
+        config['number_of_gpus'] = min(1, config['number_of_gpus'])
+
+    my_print(f'Requested number of GPUs after check: {config["number_of_gpus"]}')
+
+def setup(config, rank, world_size, train=True, time=False, create_directories=True):
+    if config['user_code'] is not None:
+        import_user_code(config['user_code'])
+    DeepTConfigDescription.create_deept_config_description()
+    if create_directories:
+        setup_directories(config)
+    setup_settings(config, rank, world_size, train, time)
+    setup_torch(config)
+    if config['number_of_gpus'] > 0:
+        setup_cuda(config)
+    if config['number_of_gpus'] > 1:
+        setup_ddp(config)
 
 def import_user_code(paths_to_user_code):
 
@@ -53,31 +84,6 @@ def import_user_code(paths_to_user_code):
 
         __import_files_recursive('', path)
 
-def check_and_correct_requested_number_of_gpus(config, train=True):
-
-    num_gpus_avail = torch.cuda.device_count()
-
-    my_print(f'Number of GPUs available: {num_gpus_avail}')
-    my_print('Available devices:', [torch.cuda.get_device_name(i) for i in range(num_gpus_avail)])
-
-    config['number_of_gpus'] = max(0, config['number_of_gpus'])
-
-    assert (config['number_of_gpus'] <= num_gpus_avail, 
-        f'Not enough GPUs available! Avail: {num_gpus_avail}, Requested {config["number_of_gpus"]}')
-
-    if not train: # We do not support multi-gpu for search
-        config['number_of_gpus'] = min(1, config['number_of_gpus'])
-
-    my_print(f'Requested number of GPUs after check: {config["number_of_gpus"]}')
-
-def setup(config, rank, world_size, train=True, time=False, create_directories=True):
-    if create_directories:
-        setup_directories(config)
-    setup_settings(config, rank, world_size, train, time)
-    setup_torch(config)
-    if config['number_of_gpus'] > 0:
-        setup_ddp(config)
-
 def setup_settings(config, rank, world_size, train, time):
     Settings.set_rank(rank)
     Settings.set_number_of_workers(world_size)
@@ -112,6 +118,9 @@ def setup_torch(config):
     if config['deterministic', False]:
         torch.use_deterministic_algorithms(True)
 
+def setup_cuda(config):
+    torch.cuda.set_device(Settings.get_device())
+
 def setup_ddp(config):
 
     import os
@@ -119,14 +128,9 @@ def setup_ddp(config):
 
     my_print('Setting up distributed training!')
 
-    config['update_freq'] = config['update_freq'] // Settings.get_number_of_workers()
-    my_print(f'Scaled down update_freq to {config["update_freq"]}!')
-
-    torch.cuda.set_device(Settings.get_device())
-
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
-
+    
     dist.init_process_group(
         rank=Settings.rank(),
         world_size=Settings.get_number_of_workers()

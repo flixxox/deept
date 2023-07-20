@@ -11,11 +11,11 @@ def register_model(name):
 
     return register_model_fn
 
-def create_model_from_config(config, vocab_src, vocab_tgt):
+def create_model_from_config(config):
 
     if config['model'] in __MODEL_DICT__:
         from deept.util.debug import my_print
-        model = __MODEL_DICT__[config['model']].create_from_config(config, vocab_src, vocab_tgt)
+        model = __MODEL_DICT__[config['model']].create_from_config(config)
         my_print(f'Initializing model weights!')
         model.init_weights()
         return model

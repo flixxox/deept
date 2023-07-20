@@ -8,9 +8,9 @@ from deept.model.scores import Score
 from deept.util.trainer import Trainer
 from deept.util.globals import Settings, Context
 from deept.util.data import create_dp_from_config
+from deept.model.model import create_model_from_config
 from deept.util.debug import my_print, print_memory_usage
 from deept.util.checkpoint_manager import CheckpointManager
-from deept.model.model import create_model_from_config
 from deept.model.optimizer import create_optimizer_from_config
 from deept.model.lr_scheduler import create_lr_scheduler_from_config
 from deept.util.config import (
@@ -30,7 +30,7 @@ def parse_cli_arguments():
 
     parser.add_argument('--config', type=str, required=True, 
         help='The path to the config.yaml which contains all user defined parameters.')
-    parser.add_argument('--user-code', type=str, nargs='+', required=True,
+    parser.add_argument('--user-code', type=str, nargs='+', required=False, default=None,
         help="""A path to the directory containing the user code.
             The directory must be named 'deept_user'.
             All <NAME>.py files in this directory will be imported as deept_user.<NAME>.
@@ -69,36 +69,36 @@ def start(config):
 
 def train(rank, config, world_size):
 
-    import_user_code(config['user_code'])
-    
-    # We do it again to be uptodate with user imports
-    DeepTConfigDescription.create_deept_config_description()
-
     setup(config, rank, world_size, train=True)
+
+    config['update_freq'] = config['update_freq'] // Settings.get_number_of_workers()
+    my_print(f'Scaled down update_freq to {config["update_freq"]}!')
 
     if config['resume_training']:
         config['output_folder'] = join(config['resume_training_from'])
-
-    if Settings.get_number_of_workers() > 1:
-        from torch.nn.parallel import DistributedDataParallel as DDP
 
     torch.manual_seed(Settings.get_global_seed())
     
     train_datapipe = create_dp_from_config(config, 
         config['data_train_root'],
         config['data_train_mask'],
-        bucket_batch=True
+        bucket_batch=True,
+        name='train'
     )
+
     dev_datapipe = create_dp_from_config(config,
         config['data_train_root'],
         config['data_train_mask'],
-        bucket_batch=False
+        bucket_batch=False,
+        name='dev'
     )
 
-    model = create_model_from_config(config, vocab_src, vocab_tgt)
+    model = create_model_from_config(config)
     model.init_weights()
     model = model.to(Settings.get_device())
-    model = DDP(model, device_ids=[Settings.rank()])
+    if config['number_of_gpus'] > 1:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+        model = DDP(model, device_ids=[Settings.get_device()])
     Context.add_context('model', model)
 
     criterion = Score.create_score_from_config(config).to(Settings.get_device())

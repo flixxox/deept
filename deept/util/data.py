@@ -13,6 +13,7 @@ from deept.util.globals import Settings, Context
 
 __DP_DECODING__ = {}
 __DP_PREPROCESSING__ = {}
+__DP_COLLATE__ = {}
 __DP_OVERWRITE__ = {}
 __LEN_FN__ = {}
 
@@ -34,13 +35,12 @@ def register_dp_preprocessing(name):
     return register_dp_preprocessing_fn
 
 def register_dp_collate(name):
-    def register_model_fn(cls):
-        if name in __MODEL_DICT__:
-            raise ValueError(f'Model {name} already registered!')
-        __MODEL_DICT__[name] = cls
+    def register_dp_collate_fn(cls):
+        if name in __DP_COLLATE__:
+            raise ValueError(f'Collating datapipe {name} already registered!')
+        __DP_COLLATE__[name] = cls
         return cls
-
-    return register_model_fn
+    return register_dp_collate_fn
 
 def register_len_fn(name):
     def register_len_fn_fn(cls):
@@ -58,7 +58,7 @@ def register_dp_overwrite(name):
     return register_dp_overwrite_fn
 
 
-def create_dp_from_config(config, data_root, data_mask, bucket_batch=False):
+def create_dp_from_config(config, data_root, data_mask, bucket_batch=False, name=''):
 
     user_dp_overwrite_key = config['data_dp_overwrite', '']
     if user_dp_overwrite_key != '' and user_dp_overwrite_key in __DP_OVERWRITE__:
@@ -66,7 +66,7 @@ def create_dp_from_config(config, data_root, data_mask, bucket_batch=False):
 
     pipe = (
         dp.iter.FileLister(root=data_root, masks=data_mask, recursive=False, abspath=True)
-        .shuffle(buffer_size=10000) # shuffle shards
+        .shuffle()
         .open_files(mode="b")
         .load_from_tar()
     )
@@ -75,7 +75,7 @@ def create_dp_from_config(config, data_root, data_mask, bucket_batch=False):
 
     pipe = (
         pipe.webdataset()
-        .shuffle(buffer_size=10000) # shuffle shards
+        .shuffle() # Shuffle shards
         .sharding_filter() # Distributes across processes
     )
 
@@ -83,11 +83,23 @@ def create_dp_from_config(config, data_root, data_mask, bucket_batch=False):
     len_fn = get_len_fn(config)
 
     pipe = (
-        pipe.max_token_bucketize(max_token_count=config['batch_size'], len_fn=len_fn, include_padding=False)
-        .shuffle(buffer_size=30)
+        pipe.max_token_bucketize(
+            max_token_count=config['batch_size'],
+            min_len=config['min_sample_size', 0],
+            max_len=config['max_sample_size', None],
+            buffer_size=config['buffer_size_bucketing', 1000],
+            len_fn=len_fn,
+            include_padding=False
+        )
+        .shuffle(buffer_size=config['buffer_size_batch_shuffling', 100])
     )
 
-    # pipe = create_collating_dp_from_config(config)
+    pipe = create_collating_dp_from_config(config, pipe)
+    
+    if name != '':
+        name = ' ' + name
+
+    my_print(f'Created datapipe{name}!')
 
     return pipe
 
@@ -105,12 +117,17 @@ def create_preprocessing_dp_from_config(config, source_dp):
     else:
         raise ValueError(f'Error! Unrecognized preprocessing datapipe {config["data_preprocess"]}!')
 
-def create_collating_dp_from_config(config):
-    pass
+def create_collating_dp_from_config(config, source_dp):
+    if config['data_collate'] in __DP_COLLATE__:
+        pipe = __DP_COLLATE__[config['data_collate']].create_from_config(config, source_dp)
+        return pipe
+    else:
+        raise ValueError(f'Error! Unrecognized collating datapipe {config["data_collate"]}!')
 
 def create_dp_overwrite_from_config(config):
     user_dp_overwrite_key = config['data_dp_overwrite']
     datapipe = __DP_OVERWRITE__[user_dp_overwrite_key].create_from_config(config)
+    my_print('Overwrote datapipe!')
     return datapipe
 
 def get_len_fn(config):
@@ -128,6 +145,9 @@ def get_all_dp_preprocessing_keys():
 
 def get_all_len_fn_keys():
     return list(__LEN_FN__.keys())
+
+def get_all_dp_collate_keys():
+    return list(__DP_COLLATE__.keys())
 
 def get_all_dp_overwrite_keys():
     return list(__DP_OVERWRITE__.keys())
@@ -312,16 +332,19 @@ class MTPreprocesserIterDataPipe(IterDataPipe):
     @staticmethod
     def create_from_config(config, source_dp):
 
-        from deept.util.globals import Context
+        if not Context.has_context('vocab_src'):
+            vocab_src = MTVocabulary.create_vocab(config['vocab_src'])
+            Context.add_context('vocab_src', vocab_src)
+            my_print(f'Vocab size source {vocab_src.vocab_size}!')
+        else:
+            vocab_src = Context['vocab_src']
 
-        vocab_src = MTVocabulary.create_vocab(config['vocab_src'])
-        vocab_tgt = MTVocabulary.create_vocab(config['vocab_tgt'])
-
-        Context.add_context('vocab_src', vocab_src)
-        Context.add_context('vocab_tgt', vocab_tgt)
-
-        my_print(f'Vocab size source {vocab_src.vocab_size}!')
-        my_print(f'Vocab size target {vocab_tgt.vocab_size}!')
+        if not Context.has_context('vocab_tgt'):
+            vocab_tgt = MTVocabulary.create_vocab(config['vocab_tgt'])
+            Context.add_context('vocab_tgt', vocab_tgt)
+            my_print(f'Vocab size target {vocab_tgt.vocab_size}!')
+        else:
+            vocab_tgt = Context['vocab_tgt']
 
         return MTPreprocesserIterDataPipe(
             source_dp,
@@ -373,74 +396,45 @@ class MTPreprocesserIterDataPipe(IterDataPipe):
         raise NotImplementedError('Error! Do not invoke len(datapipe).')
 
 
-@register_dp_preprocessing('mt_collate')
+@register_dp_collate('mt_collate')
 class MTCollaterIterDataPipe(IterDataPipe):
 
-    def __init__(self, source_dp, vocab_src, vocab_tgt):
+    def __init__(self, source_dp):
         super().__init__()
         self.source_dp = source_dp
-        self.vocab_src = vocab_src
-        self.vocab_tgt = vocab_tgt
+        self.vocab_src = Context['vocab_src']
+        self.vocab_tgt = Context['vocab_tgt']
 
     @staticmethod
     def create_from_config(config, source_dp):
-
-        from deept.util.globals import Context
-
-        vocab_src = MTVocabulary.create_vocab(config['vocab_src'])
-        vocab_tgt = MTVocabulary.create_vocab(config['vocab_tgt'])
-
-        Context.add_context('vocab_src', vocab_src)
-        Context.add_context('vocab_tgt', vocab_tgt)
-
-        my_print(f'Vocab size source {vocab_src.vocab_size}!')
-        my_print(f'Vocab size target {vocab_tgt.vocab_size}!')
-
-        return MTPreprocesserIterDataPipe(
-            source_dp,
-            vocab_src,
-            vocab_tgt
-        )
+        return MTCollaterIterDataPipe(source_dp)
 
     def __iter__(self):
         for item in self.source_dp:
-            yield self.mt_preprocess(self.normalize_keys(item))
+            yield self.mt_collate(item)
 
-    def normalize_keys(self, item):
-        
-        assert isinstance(item, dict), """The webdataset format presets that every sample
-            is a dictionary."""
+    def mt_collate(self, item):
 
-        assert '__key__' in item.keys(), """The webdataset format presets that every sample
-            is a dictionary and contains a __key__ entry."""
-
-        idx = item['__key__'].split('/')[-1]
-
-        assert 'sample' in idx, """At the moment we expect you to name each sample of the webdataset sampleXXXXX."""
-
-        idx = int(idx.split('/')[-1].split('sample')[-1])
-
-        normalized_dict = {
-            '__key__': idx
+        dict_collated = {
+            '__keys__': [x['__key__'] for x in item]
         }
 
-        for k, v in item.items():
-            if 'source' in k:
-                normalized_dict['src'] = v
-            elif 'target' in k:
-                normalized_dict['tgt'] = v
+        pad_index = self.vocab_src.PAD
+        eos_index_src = self.vocab_src.EOS
+        eos_index_tgt = self.vocab_tgt.EOS
 
-        return normalized_dict
+        max_s = max([len(x['src']) for x in item])
+        max_t = max([len(x['tgt']) for x in item])
 
-    def mt_preprocess(self, item):
+        s = [[eos_index_src] + x['src'] + [eos_index_src] + [pad_index] * (max_s - len(x['src'])) for x in item]
+        t = [[eos_index_tgt] + x['tgt'] + [pad_index] * (max_t - len(x['tgt'])) for x in item]
+        o = [x['tgt'] + [eos_index_tgt] + [pad_index] * (max_t - len(x['tgt'])) for x in item]
 
-        item['src'] = item['src'].strip().replace("\n", "").split(" ")
-        item['tgt'] = item['tgt'].strip().replace("\n", "").split(" ")
+        dict_collated['src'] = torch.tensor(s)
+        dict_collated['tgt'] = torch.tensor(t)
+        dict_collated['out'] = torch.tensor(o)
 
-        item['src'] = self.vocab_src.tokenize(item['src'])
-        item['tgt'] = self.vocab_src.tokenize(item['tgt'])
-
-        return item
+        return dict_collated
 
     def __len__(self):
         raise NotImplementedError('Error! Do not invoke len(datapipe).')
