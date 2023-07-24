@@ -115,3 +115,10 @@ def print_allocated_tensors():
                 my_print(type(obj), obj.size())
         except:
             pass
+
+def write_number_to_file(filename, value):
+    from os.path import join
+    from deept.util.globals import Settings
+    if Settings.rank() == 0:
+        with open(join(Settings.get_dir('numbers_dir'), filename), 'a') as file:
+            file.write(f'{value}\n')

@@ -1,12 +1,12 @@
 
 from os import mkdir
-from os.path import join, isdir
 
 import torch
 import torch.nn as nn
 import torch.distributed as dist
 
 from deept.util.globals import Settings
+from deept.util.debug import write_number_to_file
 
 
 __SCORES__ = {}
@@ -37,6 +37,11 @@ def check_score(score):
 
 def get_all_score_keys():
     return list(__SCORES__.keys())
+
+
+def write_scores_dict_to_files(scores_dict, prefix=''):
+    for k, v in scores_dict.items():
+        write_number_to_file(prefix + '.' + k, v)
 
 
 class ScoreAccummulator:
@@ -88,21 +93,6 @@ class Score(nn.Module):
 
         self.sub_scores = []
         self.accumulators = []
-
-    @staticmethod
-    def write_score_to_file(directory, filename, score):
-
-        if Settings.rank() != 0:
-            return
-
-        if not isdir(directory):
-            mkdir(directory)
-
-        if isinstance(score, torch.Tensor):
-            score = float(score.cpu().detach().numpy())
-
-        with open(join(directory, filename), 'a') as file:
-            file.write(f'{score}\n')
             
     def register_accumulator(self, name):
         self.accumulators.append(ScoreAccummulator(name))

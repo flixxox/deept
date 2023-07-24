@@ -3,13 +3,14 @@ from contextlib import nullcontext
 
 import torch
 
-from deept.model.scores import Score
 from deept.util.globals import Settings, Context
 from deept.util.timer import Timer, ContextTimer
+from deept.model.scores import write_scores_dict_to_files
 from deept.util.debug import (
     my_print,
     print_summary,
-    print_memory_usage
+    print_memory_usage,
+    write_number_to_file
 )
 
 
@@ -77,8 +78,8 @@ class Trainer:
         checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
 
         score_summary = self.create_score_summary_dict()
+        write_scores_dict_to_files(score_summary, prefix='train')
         score_summary['train_steps'] = self.checkpoint_manager.step_count-1
-
         print_summary(True, checkpoint_number, **score_summary)
 
         eval_score_summary = self.eval()
@@ -106,23 +107,12 @@ class Trainer:
             steps += 1
 
         score_summary = self.create_score_summary_dict()
+        write_scores_dict_to_files(score_summary, prefix='dev')
         score_summary['eval_steps'] = steps
 
         print_summary(False, self.checkpoint_manager.get_checkpoint_number(), **score_summary)
 
         self.model.train()
-
-        return score_summary
-
-    def create_score_summary_dict(self):
-
-        score_summary = {}
-
-        criterion_values = self.criterion.average_and_reset_accumulators()
-        score_summary.update(criterion_values)
-
-        for score in self.scores:
-            score_summary.update(score.average_and_reset_accumulators())
 
         return score_summary
 
@@ -136,6 +126,8 @@ class Trainer:
                 L_accum += L
         
         L_accum += self.train_ministep(data[-1])
+
+        write_number_to_file('L', L_accum)
 
         with ContextTimer('average_gradients'):
             for p in self.model.parameters():
@@ -188,3 +180,15 @@ class Trainer:
             self.criterion(output, *[data[k] for k in self.criterion.input_keys])
             for score in self.scores:
                 score(output, *[data[k] for k in score.input_keys])
+
+    def create_score_summary_dict(self):
+
+        score_summary = {}
+
+        criterion_values = self.criterion.average_and_reset_accumulators()
+        score_summary.update(criterion_values)
+
+        for score in self.scores:
+            score_summary.update(score.average_and_reset_accumulators())
+
+        return score_summary

@@ -119,6 +119,7 @@ class CheckpointManager:
             self.save_last()
             
             cur_score = score_summary[self.best_indicator]
+
             if cur_score < self.best_score:
                 self.save_best()
                 self.best_score = cur_score

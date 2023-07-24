@@ -1,5 +1,9 @@
 
+from os.path import join
+
 import torch
+
+from deept.util.debug import write_number_to_file
 
 __LR_SCHEDULER_DICT__ = {}
 
@@ -37,12 +41,16 @@ class LR_Scheduler:
         for param_group, lr in zip(self.optimizer.param_groups, lrs):
             param_group['lr'] = lr
         self.lrs = lrs
+        self.__write_lrs_to_file()
+
+    def __write_lrs_to_file(self):
+        write_number_to_file('lrs', self.lrs)
 
     def state_dict(self):
         return {key: value for key, value in self.__dict__.items() if key != 'optimizer'}
 
     def load_state_dict(self, state_dict):
-        self.__dict__.update(state_dict) 
+        self.__dict__.update(state_dict)
 
 
 @register_lr_scheduler('Warmup')
