@@ -2,9 +2,10 @@ import _setup_env
 
 import argparse
 
-import deept.util.data
 import deept.model.model
 import deept.model.scores
+import deept.util.datapipe
+import deept.util.dataloader
 import deept.model.optimizer
 import deept.model.lr_scheduler
 from deept.util.debug import my_print

@@ -15,7 +15,7 @@ class CheckpointManager:
         for k, v in kwargs.items():
             setattr(self, k, v)
         
-        self.best_ppl = float('inf')
+        self.best_score = float('inf')
         self.ckpts_since_best = 0
         self.step_count = 1 # The current step. Increased after do_checkpoint_after_step()
         self.epoch_count = 1 # The current epoch. Increased after do_checkpoint_after_epoch()
@@ -37,6 +37,7 @@ class CheckpointManager:
             do_early_abort = config['early_abort', False],
             checkpoints_till_abort = config['checkpoints_till_abort', 0],
             checkpoint_start_after = config['checkpoint_start_after', 0],
+            best_indicator = config['best_checkpoint_indicator'],
             load_weights = config['load_weights', False],
             load_weights_from = config['load_weights_from', ""]
         )
@@ -98,7 +99,7 @@ class CheckpointManager:
         checkpoint = torch.load(path, map_location=Settings.get_device())
 
         Context['model'].load_state_dict(checkpoint['model'])
-        self.best_ppl = checkpoint['best_ppl']
+        self.best_score = checkpoint['best_score']
         self.ckpts_since_best = checkpoint['ckpts_since_best']
         self.step_count = checkpoint['step_count']
         self.epoch_count = checkpoint['epoch_count']
@@ -111,15 +112,16 @@ class CheckpointManager:
             Context['lr_scheduler'].load_state_dict(checkpoint['lr_scheduler'])
 
 
-    def save(self, ppl):
+    def save(self, score_summary):
 
         if Settings.rank() == 0:
 
             self.save_last()
-
-            if ppl < self.best_ppl:
+            
+            cur_score = score_summary[self.best_indicator]
+            if cur_score < self.best_score:
                 self.save_best()
-                self.best_ppl = ppl
+                self.best_score = cur_score
                 self.ckpts_since_best = 0
             else:
                 self.ckpts_since_best += 1
@@ -147,7 +149,7 @@ class CheckpointManager:
             'model': Context['model'].state_dict(),
             'optimizer': Context['optimizer'].state_dict(),
             'lr_scheduler': Context['lr_scheduler'].state_dict(),
-            'best_ppl': self.best_ppl,
+            'best_score': self.best_score,
             'ckpts_since_best': self.ckpts_since_best,
             'step_count': self.step_count,
             'epoch_count': self.epoch_count,
@@ -288,7 +290,7 @@ class CheckpointManager:
 
         torch.save({
             'model': state_dict,
-            'best_ppl': 0.,
+            'best_score': 0.,
             'ckpts_since_best': 0,
             'step_count': 0,
             'epoch_count': 0,

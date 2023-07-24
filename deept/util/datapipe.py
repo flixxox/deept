@@ -1,7 +1,5 @@
 
 
-import pickle
-
 import torch
 import torch.distributed as dist
 import torchdata.datapipes as dp
@@ -43,11 +41,12 @@ def register_dp_collate(name):
     return register_dp_collate_fn
 
 def register_len_fn(name):
-    def register_len_fn_fn(cls):
+    def decorator(fn):
         if name in __LEN_FN__:
             raise ValueError(f'Len function {name} already registered!')
-        __LEN_FN__[name] = cls
-    return register_len_fn_fn
+        __LEN_FN__[name] = fn
+        return fn
+    return decorator
 
 def register_dp_overwrite(name):
     def register_dp_overwrite_fn(cls):
@@ -58,7 +57,7 @@ def register_dp_overwrite(name):
     return register_dp_overwrite_fn
 
 
-def create_dp_from_config(config, data_root, data_mask, bucket_batch=False, name=''):
+def create_dp_from_config(config, data_root, data_mask, name='', chunk=False):
 
     user_dp_overwrite_key = config['data_dp_overwrite', '']
     if user_dp_overwrite_key != '' and user_dp_overwrite_key in __DP_OVERWRITE__:
@@ -95,6 +94,12 @@ def create_dp_from_config(config, data_root, data_mask, bucket_batch=False, name
     )
 
     pipe = create_collating_dp_from_config(config, pipe)
+
+    if Settings.is_gpu():
+        pipe = pipe.pin_memory()
+    
+    if chunk:
+        pipe = pipe.batch(batch_size=config['update_freq'], drop_last=True)
     
     if name != '':
         name = ' ' + name
@@ -130,12 +135,6 @@ def create_dp_overwrite_from_config(config):
     my_print('Overwrote datapipe!')
     return datapipe
 
-def get_len_fn(config):
-    if config['data_len_fn'] in __LEN_FN__:
-        return __LEN_FN__[config['data_len_fn']]
-    else:
-        raise ValueError(f'Error! Unrecognized length function {config["data_len_fn"]}!')
-
 
 def get_all_dp_decoding_keys():
     return list(__DP_DECODING__.keys())
@@ -152,10 +151,16 @@ def get_all_dp_collate_keys():
 def get_all_dp_overwrite_keys():
     return list(__DP_OVERWRITE__.keys())
 
+def get_len_fn(config):
+    if config['data_len_fn'] in __LEN_FN__:
+        return __LEN_FN__[config['data_len_fn']]
+    else:
+        raise ValueError(f'Error! Unrecognized length function {config["data_len_fn"]}!')
+
 
 @register_len_fn('mt_tgt_len_fn')
 def mt_length_function(item):
-    return len(item['tgt'])
+    return len(item['tgt'])+1
 
 
 @register_dp_decoding('text')
@@ -218,6 +223,7 @@ class MTVocabulary:
 
     @staticmethod
     def read_from_pickle(vocab_path):
+        import pickle
         with open(vocab_path, 'rb') as f:
             vocab = pickle.load(f)
         return vocab
@@ -345,6 +351,11 @@ class MTPreprocesserIterDataPipe(IterDataPipe):
             my_print(f'Vocab size target {vocab_tgt.vocab_size}!')
         else:
             vocab_tgt = Context['vocab_tgt']
+
+        if not Context.has_context('pad_index'):
+            Context.add_context('pad_index', vocab_src.PAD)
+
+        assert vocab_src.PAD == vocab_tgt.PAD
 
         return MTPreprocesserIterDataPipe(
             source_dp,

@@ -15,21 +15,25 @@ def check_and_correct_requested_number_of_gpus(config, train=True):
 
     config['number_of_gpus'] = max(0, config['number_of_gpus'])
 
-    assert (config['number_of_gpus'] <= num_gpus_avail, 
-        f'Not enough GPUs available! Avail: {num_gpus_avail}, Requested {config["number_of_gpus"]}')
+    assert config['number_of_gpus'] <= num_gpus_avail, f"""Not enough GPUs available! 
+        Avail: {num_gpus_avail}, Requested {config["number_of_gpus"]}"""
 
     if not train: # We do not support multi-gpu for search
         config['number_of_gpus'] = min(1, config['number_of_gpus'])
 
     my_print(f'Requested number of GPUs after check: {config["number_of_gpus"]}')
 
-def setup(config, rank, world_size, train=True, time=False, create_directories=True):
+def setup(config, rank, world_size, 
+    train=True,
+    time=False,
+    create_directories=True
+):
     if config['user_code'] is not None:
         import_user_code(config['user_code'])
     DeepTConfigDescription.create_deept_config_description()
+    setup_settings(config, rank, world_size, train, time)
     if create_directories:
         setup_directories(config)
-    setup_settings(config, rank, world_size, train, time)
     setup_torch(config)
     if config['number_of_gpus'] > 0:
         setup_cuda(config)
@@ -100,12 +104,12 @@ def setup_settings(config, rank, world_size, train, time):
 def setup_directories(config):
     
     from os.path import join
+    from os.path import isdir
 
     def __maybe_create_dir(dir):
         from os import mkdir
-        from os.path import isdir
         if not isdir(dir) and Settings.rank() == 0:
-            mkdir(checkpoint_dir)
+            mkdir(dir)
 
     Settings.add_dir('output_dir', config['output_folder'])
     Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
@@ -113,6 +117,12 @@ def setup_directories(config):
 
     __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
     __maybe_create_dir(Settings.get_dir('numbers_dir'))
+
+    assert isdir(Settings.get_dir('checkpoint_dir')), f"""Something went wrong in creating directories! 
+        Expected to have the directory {Settings.get_dir('checkpoint_dir')}"""
+
+    assert isdir(Settings.get_dir('numbers_dir')), f"""Something went wrong in creating directories! 
+        Expected to have the directory {Settings.get_dir('numbers_dir')}"""
 
 def setup_torch(config):
     if config['deterministic', False]:

@@ -1,11 +1,16 @@
 import math
+from contextlib import nullcontext
 
 import torch
 
 from deept.model.scores import Score
 from deept.util.globals import Settings, Context
 from deept.util.timer import Timer, ContextTimer
-from deept.util.debug import my_print, print_summary, print_memory_usage
+from deept.util.debug import (
+    my_print,
+    print_summary,
+    print_memory_usage
+)
 
 
 class Trainer:
@@ -20,13 +25,14 @@ class Trainer:
         self.criterion = Context['criterion']
         self.optimizer = Context['optimizer']
         self.lr_scheduler = Context['lr_scheduler']
+        self.scores = Context['scores']
 
     @staticmethod
-    def create_trainer_from_config(config, train_datapipe, dev_datapipe, checkpoint_manager):
+    def create_trainer_from_config(config, train_dataloader, dev_dataloader, checkpoint_manager):
 
         trainer = Trainer(
-            train_datapipe = train_datapipe,
-            dev_datapipe = dev_datapipe,
+            train_dataloader = train_dataloader,
+            dev_dataloader = dev_dataloader,
             checkpoint_manager = checkpoint_manager,
             update_freq = config['update_freq'],
             allow_none_type_gradients = config['allow_none_type_gradients', False],
@@ -35,16 +41,22 @@ class Trainer:
 
         return trainer
 
+    @staticmethod
+    def do_ddp():
+        return Settings.get_number_of_workers() > 1
+
     def train(self):
 
         self.model.train()
         self.model.zero_grad(set_to_none=True)
 
+        self.train_dataloader.seed(self.checkpoint_manager.epoch_count)
+
         self.checkpoint_manager.timer_start()
 
         while self.checkpoint_manager.keep_going():
 
-            for _, data in self.train_datapipe:
+            for data in self.train_dataloader:
 
                 assert len(data) == self.update_freq
 
@@ -60,87 +72,70 @@ class Trainer:
                 self.do_checkpoint()
     
     def do_checkpoint(self):
-        with torch.no_grad():
-            time_passed_s = self.checkpoint_manager.timer_end()
-            checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
 
-            train_ce, train_ce_smooth = self.criterion.average_and_reset()
-            train_ppl, train_ppl_smooth = self.__calculate_ppl(train_ce, train_ce_smooth)
+        time_passed_s = self.checkpoint_manager.timer_end()
+        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
 
-            to_print = {
-                'ce': train_ce,
-                'ce_smooth': train_ce_smooth,
-                'ppl': train_ppl,
-                'ppl_smooth': train_ppl_smooth,
-                'train_steps': self.checkpoint_manager.step_count-1
-            }
+        score_summary = self.create_score_summary_dict()
+        score_summary['train_steps'] = self.checkpoint_manager.step_count-1
 
-            print_summary(True, checkpoint_number, **to_print)
+        print_summary(True, checkpoint_number, **score_summary)
 
-            dev_ppl = self.eval(checkpoint_number)
+        eval_score_summary = self.eval()
 
-            print_memory_usage()
-            my_print(f'Training checkpoint took: {time_passed_s:4.2f}s, {time_passed_s / 60:4.2f}min')
+        print_memory_usage()
+        my_print(f'Training checkpoint took: {time_passed_s:4.2f}s, {time_passed_s / 60:4.2f}min')
 
-            self.checkpoint_manager.save(dev_ppl)
+        self.checkpoint_manager.save(eval_score_summary)
 
-            Score.write_score_to_file(self.numbers_dir, 'train_ppl', train_ppl)
-            Score.write_score_to_file(self.numbers_dir, 'dev_ppl',   dev_ppl)
+        if Settings.do_timing():
+            model_time = Timer.print_timing_summary(self.model)
+            ContextTimer.print_summary(model_time)
 
-            if Settings.do_timing():
-                model_time = Timer.print_timing_summary(self.model)
-                ContextTimer.print_summary(model_time)
+        self.checkpoint_manager.timer_start()
 
-            self.checkpoint_manager.timer_start()
-
-    def eval(self, checkpoint_number):
+    def eval(self):
 
         self.model.eval()
 
-        for _, data in self.dev_datapipe:
+        self.dev_dataloader.seed(self.checkpoint_manager.epoch_count)
 
-            ce, ce_smooth, _ = self.eval_step(data)
+        steps = 0
+        for data in self.dev_dataloader:
+            self.eval_step(data)
+            steps += 1
 
-        ce, ce_smooth = self.criterion.average_and_reset()
-        ppl, ppl_smooth = self.__calculate_ppl(ce, ce_smooth)
+        score_summary = self.create_score_summary_dict()
+        score_summary['eval_steps'] = steps
 
-        to_print = {
-            'ce':               ce,
-            'ce_smooth':        ce_smooth,
-            'ppl':              ppl,
-            'ppl_smooth':       ppl_smooth,
-            'eval_steps':       step
-        }
-
-        print_summary(False, checkpoint_number, **to_print)
+        print_summary(False, self.checkpoint_manager.get_checkpoint_number(), **score_summary)
 
         self.model.train()
 
-        return ppl
+        return score_summary
 
-    def __calculate_ppl(self, ce, ce_smooth):
+    def create_score_summary_dict(self):
 
-        try: 
-            ppl = math.exp(ce) 
-            ppl_smooth = math.exp(ce_smooth)
+        score_summary = {}
 
-        except OverflowError: 
-            ppl = float('inf')
-            ppl_smooth = float('inf')
+        criterion_values = self.criterion.average_and_reset_accumulators()
+        score_summary.update(criterion_values)
 
-        return ppl, ppl_smooth
+        for score in self.scores:
+            score_summary.update(score.average_and_reset_accumulators())
+
+        return score_summary
 
     def train_step(self, data):
 
         L_accum = 0
 
-        with self.model.no_sync():
+        with self.model.no_sync() if Trainer.do_ddp() else nullcontext():
             for i in range(len(data)-1):
                 L = self.train_ministep(data[i])
                 L_accum += L
         
-        L = self.train_ministep(data[-1])
-        L_accum += L
+        L_accum += self.train_ministep(data[-1])
 
         with ContextTimer('average_gradients'):
             for p in self.model.parameters():
@@ -159,35 +154,37 @@ class Trainer:
     
     def train_ministep(self, data):
 
-        for i in range(len(data)):
-            data[i] =  data[i].to(Settings.get_device())
+        for k, v in data.items():
+            if isinstance(v, torch.Tensor):
+                data[k] =  data[k].to(Settings.get_device())
 
-        with ContextTimer('model_mask_creation'):
-            masks, out_mask = self.model.module.create_masks(*data)
-
-        output, _ = self.model(*data, **masks)
+        output, _ = self.model(*[data[k] for k in self.model.input_keys])
 
         with ContextTimer('criterion'):
-            _, ce_smooth, L_ce = self.criterion(output, *data, out_mask=out_mask)
+            criterion, L = self.criterion(output, *[data[k] for k in self.criterion.input_keys])
 
         with ContextTimer('backpropagation'):
-            ce_smooth.backward()
+            criterion.backward()
+
+        with torch.no_grad():
+            with ContextTimer('scores'):
+                for score in self.scores:
+                    score(output, *[data[k] for k in score.input_keys])
 
         if self.deterministic:
             Settings.increase_global_seed()
             torch.manual_seed(Settings.get_global_seed())
 
-        return L_ce
+        return L
 
     def eval_step(self, data):
         
-        src = src.to(Settings.get_device())
-        tgt = tgt.to(Settings.get_device())
-        out = out.to(Settings.get_device())
+        for k, v in data.items():
+            if isinstance(v, torch.Tensor):
+                data[k] =  data[k].to(Settings.get_device())
 
         with torch.no_grad():
-            masks, out_mask     = self.model.create_masks(src, out, self.pad_index)
-            output, _           = self.model(src, tgt, **masks)
-            ce, ce_smooth, L_ce = self.criterion(output, out, out_mask=out_mask)
-
-        return ce, ce_smooth, L_ce
+            output, _ = self.model(*[data[k] for k in self.model.input_keys])
+            self.criterion(output, *[data[k] for k in self.criterion.input_keys])
+            for score in self.scores:
+                score(output, *[data[k] for k in score.input_keys])

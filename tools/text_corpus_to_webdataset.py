@@ -1,7 +1,7 @@
 # python3 /home/fschmidt/code/deept/tools/text_corpus_to_webdataset.py \
-# --corpus-files /home/fschmidt/data/iwslt/de-en/train.de /home/fschmidt/data/iwslt/de-en/train.en \
+# --corpus-files /home/fschmidt/data/iwslt/de-en/debug.de /home/fschmidt/data/iwslt/de-en/debug.en \
 # --sample-names source target \
-# --output-folder /home/fschmidt/data/iwslt/de-en/webdataset --output-name train.tar
+# --output-folder /home/fschmidt/data/iwslt/de-en/webdataset --output-name debug.tar
 
 import _setup_env
 

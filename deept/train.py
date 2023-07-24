@@ -4,14 +4,15 @@ from os.path import join
 
 import torch
 
-from deept.model.scores import Score
 from deept.util.trainer import Trainer
 from deept.util.globals import Settings, Context
-from deept.util.data import create_dp_from_config
+from deept.util.datapipe import create_dp_from_config
 from deept.model.model import create_model_from_config
+from deept.model.scores import create_score_from_config
 from deept.util.debug import my_print, print_memory_usage
 from deept.util.checkpoint_manager import CheckpointManager
 from deept.model.optimizer import create_optimizer_from_config
+from deept.util.dataloader import create_dataloader_from_config
 from deept.model.lr_scheduler import create_lr_scheduler_from_config
 from deept.util.config import (
     Config,
@@ -82,16 +83,19 @@ def train(rank, config, world_size):
     train_datapipe = create_dp_from_config(config, 
         config['data_train_root'],
         config['data_train_mask'],
-        bucket_batch=True,
-        name='train'
+        name='train',
+        chunk=True
     )
 
     dev_datapipe = create_dp_from_config(config,
-        config['data_train_root'],
-        config['data_train_mask'],
-        bucket_batch=False,
-        name='dev'
+        config['data_dev_root'],
+        config['data_dev_mask'],
+        name='dev',
+        chunk=False
     )
+
+    train_dataloader = create_dataloader_from_config(config, train_datapipe, shuffle=True)
+    dev_dataloader = create_dataloader_from_config(config, dev_datapipe, shuffle=False)
 
     model = create_model_from_config(config)
     model.init_weights()
@@ -101,9 +105,17 @@ def train(rank, config, world_size):
         model = DDP(model, device_ids=[Settings.get_device()])
     Context.add_context('model', model)
 
-    criterion = Score.create_score_from_config(config).to(Settings.get_device())
+    criterion = create_score_from_config(config['criterion'], config)
     criterion = criterion.to(Settings.get_device())
     Context.add_context('criterion', criterion)
+
+    scores = []
+    if config['scores', None] is not None:
+        for key in config['scores']:
+            score = create_score_from_config(key, config)
+            score = score.to(Settings.get_device())
+            scores.append(score)
+    Context.add_context('scores', scores)
 
     optimizer = create_optimizer_from_config(config, model.parameters())
     Context.add_context('optimizer', optimizer)
@@ -117,8 +129,8 @@ def train(rank, config, world_size):
     checkpoint_manager.restore_if_requested()
 
     trainer = Trainer.create_trainer_from_config(config,
-        train_datapipe,
-        dev_datapipe,
+        train_dataloader,
+        dev_dataloader,
         checkpoint_manager
     )
 
@@ -126,6 +138,9 @@ def train(rank, config, world_size):
     my_print(f'Start training at checkpoint {checkpoint_manager.get_checkpoint_number()}!')
 
     trainer.train()
+
+    train_dataloader.shutdown()
+    dev_dataloader.shutdown()
 
     if config['average_last_checkpoints', False]:
         checkpoint_manager.average_last_N_checkpoints(config['checkpoints_to_average'])
