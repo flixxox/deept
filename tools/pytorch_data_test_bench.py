@@ -20,9 +20,11 @@ config['user_code'] = None
 
 setup(config, 0, 1, train=False, create_directories=False)
 
-datapipe = create_dp_from_config(config,
+datapipe = create_dp_from_config(config, 
     config['data_train_root'],
-    config['data_train_mask']
+    config['data_train_mask'],
+    name='train',
+    chunk=False
 )
 
 dataloader = create_dataloader_from_config(config,
@@ -30,9 +32,11 @@ dataloader = create_dataloader_from_config(config,
     shuffle=True
 )
 
-
 for item in dataloader:
-    print('==')
-    print('out', item['out'].shape)
+    assert (
+        item['src'].shape[1] <= config['max_sample_size'] and 
+        item['tgt'].shape[1] <= config['max_sample_size'] and
+        item['out'].shape[1] <= config['max_sample_size']), (f"""Error! Exceeded sentence length! 
+            src {item['src'].shape} tgt {item['src'].shape}!""")
 
 dataloader.shutdown()

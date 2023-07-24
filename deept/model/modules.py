@@ -130,24 +130,26 @@ class PositionalEmbedding(nn.Module):
 
 class SinusodialPositionalEmbedding(nn.Module):
 
-    def __init__(self, V, D, I, dropout, pad_index, use_pos_embed=True, return_pos_embed=False):
+    def __init__(self, V, D, maxI, dropout, pad_index, use_pos_embed=True, return_pos_embed=False):
         super().__init__()
 
         self.D = D
+        self.maxI = maxI
+
         self.return_pos_embed = return_pos_embed
         self.use_pos_embed = use_pos_embed
 
         self.word_embed = nn.Embedding(V, D, padding_idx=pad_index)
         self.dropout = nn.Dropout(dropout)
 
-        self.__precalculate_pos_embed(D, I)
+        self.__precalculate_pos_embed(D, maxI)
 
-    def __precalculate_pos_embed(self, D, I):
+    def __precalculate_pos_embed(self, D, maxI):
 
         import math
 
-        pos_embed = torch.arange(I, dtype=torch.float).unsqueeze(-1).repeat(1, D)
-        pos = torch.arange(I, dtype=torch.float).unsqueeze(-1)
+        pos_embed = torch.arange(maxI, dtype=torch.float).unsqueeze(-1).repeat(1, D)
+        pos = torch.arange(maxI, dtype=torch.float).unsqueeze(-1)
         i = torch.arange(0, D, 2, dtype=torch.float)
 
         i = torch.exp(-(i / D) * math.log(10000))
@@ -171,6 +173,7 @@ class SinusodialPositionalEmbedding(nn.Module):
 
             if J is None:
                 J = x.shape[1]
+                assert J <= self.maxI, f"""Error! x exceeded maximum sequence length! x.shape:{x.shape}"""
                 pos = self.pos_embed[:J]
             else:
                 assert x.shape[1] == 1

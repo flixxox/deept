@@ -84,13 +84,11 @@ def create_dp_from_config(config, data_root, data_mask, name='', chunk=False):
     pipe = (
         pipe.max_token_bucketize(
             max_token_count=config['batch_size'],
-            min_len=config['min_sample_size', 0],
-            max_len=config['max_sample_size', None],
             buffer_size=config['buffer_size_bucketing', 1000],
             len_fn=len_fn,
             include_padding=False
         )
-        .shuffle(buffer_size=config['buffer_size_batch_shuffling', 100])
+        .shuffle(buffer_size=config['buffer_size_batch_shuffling', 300])
     )
 
     pipe = create_collating_dp_from_config(config, pipe)
@@ -156,6 +154,7 @@ def get_len_fn(config):
         return __LEN_FN__[config['data_len_fn']]
     else:
         raise ValueError(f'Error! Unrecognized length function {config["data_len_fn"]}!')
+
 
 
 @register_len_fn('mt_tgt_len_fn')
@@ -329,14 +328,21 @@ class MTVocabulary:
 @register_dp_preprocessing('mt_preprocess')
 class MTPreprocesserIterDataPipe(IterDataPipe):
 
-    def __init__(self, source_dp, vocab_src, vocab_tgt):
+    def __init__(self, 
+        source_dp,
+        vocab_src,
+        vocab_tgt
+    ):
         super().__init__()
+
         self.source_dp = source_dp
         self.vocab_src = vocab_src
         self.vocab_tgt = vocab_tgt
 
     @staticmethod
     def create_from_config(config, source_dp):
+
+        from torchdata.datapipes.iter import Filter
 
         if not Context.has_context('vocab_src'):
             vocab_src = MTVocabulary.create_vocab(config['vocab_src'])
@@ -357,15 +363,21 @@ class MTPreprocesserIterDataPipe(IterDataPipe):
 
         assert vocab_src.PAD == vocab_tgt.PAD
 
-        return MTPreprocesserIterDataPipe(
+        pipe = MTPreprocesserIterDataPipe(
             source_dp,
             vocab_src,
-            vocab_tgt
+            vocab_tgt,
         )
+
+        pipe = MTLengthFilterIterDataPipe.create_from_config(config, pipe)
+
+        return pipe
 
     def __iter__(self):
         for item in self.source_dp:
-            yield self.mt_preprocess(self.normalize_keys(item))
+            yield self.mt_preprocess(
+                self.normalize_keys(item)
+            )
 
     def normalize_keys(self, item):
         
@@ -402,7 +414,52 @@ class MTPreprocesserIterDataPipe(IterDataPipe):
         item['tgt'] = self.vocab_src.tokenize(item['tgt'])
 
         return item
+    
+    def __len__(self):
+        raise NotImplementedError('Error! Do not invoke len(datapipe).')
 
+
+class MTLengthFilterIterDataPipe(IterDataPipe):
+
+    def __init__(self, 
+        source_dp,
+        min_length,
+        max_length
+    ):
+        super().__init__()
+
+        self.source_dp = source_dp
+
+        self.min_length = min_length
+        self.max_length = max_length
+
+    @staticmethod
+    def create_from_config(config, source_dp):
+
+        min_length = config['min_sample_size', 0]
+        max_length = config['max_sample_size', None]
+
+        return MTLengthFilterIterDataPipe(
+            source_dp,
+            min_length,
+            max_length
+        )
+
+    def __iter__(self):
+        for item in self.source_dp:
+            if self.length_filter(item):
+                yield item
+
+    def length_filter(self, item):
+        src_len = len(item['src'])+2
+        tgt_len = len(item['tgt'])+1
+        return (
+            src_len >= self.min_length and
+            src_len <= self.max_length and
+            tgt_len >= self.min_length and
+            tgt_len <= self.max_length
+        )
+    
     def __len__(self):
         raise NotImplementedError('Error! Do not invoke len(datapipe).')
 

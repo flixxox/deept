@@ -5,7 +5,9 @@ import torch
 
 from deept.util.debug import write_number_to_file
 
+
 __LR_SCHEDULER_DICT__ = {}
+
 
 def register_lr_scheduler(name):
     def register_lr_scheduler_fn(cls):

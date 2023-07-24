@@ -11,6 +11,7 @@ from deept.util.debug import write_number_to_file
 
 __SCORES__ = {}
 
+
 def register_score(name):
     def register_score_fn(cls):
         if name in __SCORES__:
