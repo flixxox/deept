@@ -1,4 +1,4 @@
-# deept #
+# A Modular Deep Learning Toolkit #
 
 This repository is used to train and search NMT models created with PyTorch.
 It allows to easily define the model, and if needed optimizers and scores, using native PyTorch API.

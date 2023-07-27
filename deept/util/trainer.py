@@ -28,6 +28,11 @@ class Trainer:
         self.lr_scheduler = Context['lr_scheduler']
         self.scores = Context['scores']
 
+        if Trainer.do_ddp():
+            self.model_input_keys = self.model.module.input_keys
+        else:
+            self.model_input_keys = self.model.input_keys
+
     @staticmethod
     def create_trainer_from_config(config, train_dataloader, dev_dataloader, checkpoint_manager):
 
@@ -90,7 +95,6 @@ class Trainer:
         self.checkpoint_manager.save(eval_score_summary)
 
         if Settings.do_timing():
-            model_time = Timer.print_timing_summary(self.model)
             ContextTimer.print_summary(model_time)
 
         self.checkpoint_manager.timer_start()
@@ -150,7 +154,7 @@ class Trainer:
             if isinstance(v, torch.Tensor):
                 data[k] =  data[k].to(Settings.get_device())
 
-        output, _ = self.model(*[data[k] for k in self.model.input_keys])
+        output, _ = self.model(*[data[k] for k in self.model_input_keys])
 
         with ContextTimer('criterion'):
             criterion, L = self.criterion(output, *[data[k] for k in self.criterion.input_keys])
@@ -158,8 +162,8 @@ class Trainer:
         with ContextTimer('backpropagation'):
             criterion.backward()
 
-        with torch.no_grad():
-            with ContextTimer('scores'):
+        with ContextTimer('scores'):
+            with torch.no_grad():
                 for score in self.scores:
                     score(output, *[data[k] for k in score.input_keys])
 

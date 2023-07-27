@@ -76,10 +76,10 @@ def import_user_code(paths_to_user_code):
                     __import_file(prefix + f'.{filename.replace(".py", "")}')
     
     if not isinstance(paths_to_user_code, list):
-        paths_to_user_code = list(paths_to_user_code)
+        paths_to_user_code = [paths_to_user_code]
 
     for path in paths_to_user_code:
-        
+
         if not isdir(path):
             raise ValueError(f'Error! User code directory not found: {path}!')
 
@@ -115,14 +115,24 @@ def setup_directories(config):
     Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
     Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
 
-    __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
-    __maybe_create_dir(Settings.get_dir('numbers_dir'))
+    if Settings.is_training():
 
-    assert isdir(Settings.get_dir('checkpoint_dir')), f"""Something went wrong in creating directories! 
-        Expected to have the directory {Settings.get_dir('checkpoint_dir')}"""
+        __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
+        __maybe_create_dir(Settings.get_dir('numbers_dir'))
 
-    assert isdir(Settings.get_dir('numbers_dir')), f"""Something went wrong in creating directories! 
-        Expected to have the directory {Settings.get_dir('numbers_dir')}"""
+        assert isdir(Settings.get_dir('checkpoint_dir')), f"""Something went wrong in creating directories! 
+            Expected to have the directory {Settings.get_dir('checkpoint_dir')}"""
+
+        assert isdir(Settings.get_dir('numbers_dir')), f"""Something went wrong in creating directories! 
+            Expected to have the directory {Settings.get_dir('numbers_dir')}"""
+
+    else:
+
+        Settings.add_dir('search_dir', join(config['output_folder'], 'search'))
+        __maybe_create_dir(Settings.get_dir('search_dir'))
+
+        assert isdir(Settings.get_dir('search_dir')), f"""Something went wrong in creating directories! 
+            Expected to have the directory {Settings.get_dir('search_dir')}"""
 
 def setup_torch(config):
     if config['deterministic', False]:

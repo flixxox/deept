@@ -57,7 +57,11 @@ def register_dp_overwrite(name):
     return register_dp_overwrite_fn
 
 
-def create_dp_from_config(config, data_root, data_mask, name='', chunk=False):
+def create_dp_from_config(config, data_root, data_mask,
+    name = '',
+    chunk = False,
+    drop_last = True
+):
 
     user_dp_overwrite_key = config['data_dp_overwrite', '']
     if user_dp_overwrite_key != '' and user_dp_overwrite_key in __DP_OVERWRITE__:
@@ -97,7 +101,7 @@ def create_dp_from_config(config, data_root, data_mask, name='', chunk=False):
         pipe = pipe.pin_memory()
     
     if chunk:
-        pipe = pipe.batch(batch_size=config['update_freq'], drop_last=True)
+        pipe = pipe.batch(batch_size=config['update_freq'], drop_last=drop_last)
     
     if name != '':
         name = ' ' + name
@@ -207,6 +211,10 @@ class MTVocabulary:
         self.PAD = self.vocab[MTVocabulary.PAD]
         self.UNK = self.vocab[MTVocabulary.UNK]
         self.EOS = self.vocab[MTVocabulary.EOS]
+
+        self.UNK_TEXT = MTVocabulary.UNK
+        self.PAD_TEXT = MTVocabulary.PAD
+        self.EOS_TEXT = MTVocabulary.EOS
 
     @staticmethod
     def create_vocab(vocab_path):

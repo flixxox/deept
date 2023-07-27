@@ -45,11 +45,9 @@ class CheckpointManager:
         return checkpoint_manager
 
     @staticmethod
-    def create_eval_checkpoint_manager_from_config(config, model):
+    def create_eval_checkpoint_manager_from_config(config):
 
-        checkpoint_manager = CheckpointManager(
-            model = model
-        )
+        checkpoint_manager = CheckpointManager()
 
         return checkpoint_manager
 
@@ -146,8 +144,15 @@ class CheckpointManager:
 
     def __save(self, path):
 
+        from torch.nn.parallel import DistributedDataParallel as DDP
+
+        model = Context['model']
+
+        if isinstance(model, DDP):
+            model = model.module
+
         torch.save({
-            'model': Context['model'].state_dict(),
+            'model': model.state_dict(),
             'optimizer': Context['optimizer'].state_dict(),
             'lr_scheduler': Context['lr_scheduler'].state_dict(),
             'best_score': self.best_score,

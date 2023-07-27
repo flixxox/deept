@@ -20,7 +20,6 @@ from deept.util.config import (
 )
 from deept.util.setup import (
     setup,
-    import_user_code,
     check_and_correct_requested_number_of_gpus
 )
 
@@ -32,11 +31,7 @@ def parse_cli_arguments():
     parser.add_argument('--config', type=str, required=True, 
         help='The path to the config.yaml which contains all user defined parameters.')
     parser.add_argument('--user-code', type=str, nargs='+', required=False, default=None,
-        help="""A path to the directory containing the user code.
-            The directory must be named 'deept_user'.
-            All <NAME>.py files in this directory will be imported as deept_user.<NAME>.
-            At the moment, no nesting of folders is supported."""
-        )
+        help="""One or multiple paths to directories containing user code.""")
     parser.add_argument('--output-folder', type=str, required=True, 
         help='The folder in which to write the training output (ckpts, learning-rates, perplexities etc.)')
     parser.add_argument('--resume-training', type=int, required=False, default=False, 
@@ -70,13 +65,13 @@ def start(config):
 
 def train(rank, config, world_size):
 
+    if config['resume_training']:
+        config['output_folder'] = config['resume_training_from']
+
     setup(config, rank, world_size, train=True)
 
     config['update_freq'] = config['update_freq'] // Settings.get_number_of_workers()
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')
-
-    if config['resume_training']:
-        config['output_folder'] = join(config['resume_training_from'])
 
     torch.manual_seed(Settings.get_global_seed())
     

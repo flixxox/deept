@@ -3,10 +3,13 @@ from enum import Enum
 from typing import Union
 from dataclasses import dataclass
 
+import deept.search as dt_search
+import deept.model.model as dt_model
 from deept.util.debug import my_print
 import deept.model.scores as dt_scores
 import deept.util.datapipe as dt_datapipe
 import deept.util.dataloader as dt_dataloader
+import deept.util.postprocessing as dt_postprocess
 
 
 class CommonAcceptedInputs(str, Enum):
@@ -35,10 +38,14 @@ class DeepTConfigDescription:
         __CONFIG_DESC__['general'] = {}
         __CONFIG_DESC__['data'] = {}
         __CONFIG_DESC__['model'] = {}
+        __CONFIG_DESC__['checkpointing'] = {}
+        __CONFIG_DESC__['search'] = {}
 
         DeepTConfigDescription.create_deept_config_description_general()
         DeepTConfigDescription.create_deept_config_description_data()
         DeepTConfigDescription.create_deept_config_description_model()
+        DeepTConfigDescription.create_deept_config_description_checkpointing()
+        DeepTConfigDescription.create_deept_config_description_search()
 
     @staticmethod
     def create_deept_config_description_general():
@@ -185,6 +192,34 @@ class DeepTConfigDescription:
             accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
         )
 
+        __CONFIG_DESC__['data']['postprocessing_fn'] = ConfigSpec(
+            description = """This is needed for search.
+                The key to the postprocessing function. The postprocessing function 
+                is directly called after the search algorithm. It should have the following signature:
+                some_function_name(NAME, Tensor). Every entry in the output dict of the search algorithm 
+                that is a Tensor is fed into this function with its name first. This function should
+                convert the Tensor (the Tensor is batched) into a list of readable values.
+                If we recognize the type we will write the values to the file search_CKPT_NAME 
+                line by line in order of the dataset.""",
+            required = True,
+            accepted_values = dt_postprocess.get_all_postprocessing_keys()
+        )
+
+        __CONFIG_DESC__['data']['corpus_size_dev'] = ConfigSpec(
+            description = """This is needed for search.
+                DeepT needs to know how many samples are within the corpus to write search results in order to a file.
+                The reason DeepT cannot determine it, is because a filter might be applied by the user before DeepT has 
+                a chance to see the data.""",
+            required = True,
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
+        )
+
+        __CONFIG_DESC__['data']['corpus_size_test'] = ConfigSpec(
+            description = """Analog to 'corpus_size_dev'.""",
+            required = True,
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
+        )
+
     @staticmethod
     def create_deept_config_description_model():
 
@@ -192,13 +227,42 @@ class DeepTConfigDescription:
 
         __CONFIG_DESC__['model']['criterion'] = ConfigSpec(
             description = """The key of the score that is used as the criterion.""",
-            required = False,
+            required = True,
             accepted_values = dt_scores.get_all_score_keys()
+        )
+
+        __CONFIG_DESC__['model']['model'] = ConfigSpec(
+            description = """The key of the model.""",
+            required = True,
+            accepted_values = dt_model.get_all_model_keys()
+        )
+
+    @staticmethod
+    def create_deept_config_description_checkpointing():
+        pass
+
+    @staticmethod
+    def create_deept_config_description_search():
+
+        __CONFIG_DESC__ = DeepTConfigDescription.__CONFIG_DESC__
+
+        __CONFIG_DESC__['search']['search_algorithm'] = ConfigSpec(
+            description = """The key of the search algorithm to use.""",
+            required = False,
+            accepted_values = dt_search.get_all_search_algorithm_keys()
+        )
+
+        __CONFIG_DESC__['search']['search_print_per_step_keys'] = ConfigSpec(
+            description = """A list of data keys that should be print after each search step.
+                They refer to the data keys of the datapipeline and 
+                the keys from the search algorithm output.""",
+            required = False,
+            accepted_values = CommonAcceptedInputs.UNKNOWN
         )
 
     @staticmethod
     def has_key(key):
-        for topic, v in DeepTConfigDescription.__CONFIG_DESC__:
+        for topic, v in DeepTConfigDescription.__CONFIG_DESC__.items():
             if key in v:
                 return True
         return False
@@ -227,7 +291,7 @@ class DeepTConfigDescription:
             __print_topic(v)
 
     def __class_getitem__(cls, key):
-        for topic, v in DeepTConfigDescription.__CONFIG_DESC__:
+        for topic, v in DeepTConfigDescription.__CONFIG_DESC__.items():
             if key in v:
                 return v[key]
         raise KeyError(f'Error! Could not find key "{key}" in DeepTConfigDescription.')
