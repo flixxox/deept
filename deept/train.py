@@ -68,7 +68,7 @@ def train(rank, config, world_size):
     if config['resume_training']:
         config['output_folder'] = config['resume_training_from']
 
-    setup(config, rank, world_size, train=True)
+    setup(config, rank, world_size, train=True, time=False)
 
     config['update_freq'] = config['update_freq'] // Settings.get_number_of_workers()
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')

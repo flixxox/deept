@@ -69,7 +69,7 @@ def create_dp_from_config(config, data_root, data_mask,
 
     pipe = (
         dp.iter.FileLister(root=data_root, masks=data_mask, recursive=False, abspath=True)
-        .shuffle()
+        .shuffle(buffer_size=100)
         .open_files(mode="b")
         .load_from_tar()
     )
@@ -78,7 +78,7 @@ def create_dp_from_config(config, data_root, data_mask,
 
     pipe = (
         pipe.webdataset()
-        .shuffle() # Shuffle shards
+        .shuffle(buffer_size=config['buffer_size_shuffle_before_batching', 10000]) # Shuffle shards
         .sharding_filter() # Distributes across processes
     )
 

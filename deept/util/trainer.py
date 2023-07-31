@@ -3,8 +3,8 @@ from contextlib import nullcontext
 
 import torch
 
+from deept.util.timer import ContextTimer
 from deept.util.globals import Settings, Context
-from deept.util.timer import Timer, ContextTimer
 from deept.model.scores import write_scores_dict_to_files
 from deept.util.debug import (
     my_print,
@@ -60,9 +60,14 @@ class Trainer:
 
         self.checkpoint_manager.timer_start()
 
+        data_loading_timer = ContextTimer('data_loading')
+        data_loading_timer.start()
+
         while self.checkpoint_manager.keep_going():
 
             for data in self.train_dataloader:
+
+                data_loading_timer.end()
 
                 assert len(data) == self.update_freq
 
@@ -73,6 +78,8 @@ class Trainer:
 
                     if not self.checkpoint_manager.keep_going():
                         return
+
+                data_loading_timer.start()
 
             if self.checkpoint_manager.do_checkpoint_after_epoch():
                 self.do_checkpoint()
@@ -95,7 +102,7 @@ class Trainer:
         self.checkpoint_manager.save(eval_score_summary)
 
         if Settings.do_timing():
-            ContextTimer.print_summary(model_time)
+            ContextTimer.print_summary()
 
         self.checkpoint_manager.timer_start()
 
@@ -130,8 +137,9 @@ class Trainer:
                 L_accum += L
         
         L_accum += self.train_ministep(data[-1])
-
-        write_number_to_file('L', L_accum)
+        
+        with ContextTimer('write_L_to_file'):
+            write_number_to_file('L', L_accum)
 
         with ContextTimer('average_gradients'):
             for p in self.model.parameters():
@@ -149,12 +157,14 @@ class Trainer:
         return L_accum
     
     def train_ministep(self, data):
+        
+        with ContextTimer('send_to_gpu'):
+            for k, v in data.items():
+                if isinstance(v, torch.Tensor):
+                    data[k] =  data[k].to(Settings.get_device())
 
-        for k, v in data.items():
-            if isinstance(v, torch.Tensor):
-                data[k] =  data[k].to(Settings.get_device())
-
-        output, _ = self.model(*[data[k] for k in self.model_input_keys])
+        with ContextTimer('model'):
+            output, _ = self.model(*[data[k] for k in self.model_input_keys])
 
         with ContextTimer('criterion'):
             criterion, L = self.criterion(output, *[data[k] for k in self.criterion.input_keys])
@@ -167,9 +177,10 @@ class Trainer:
                 for score in self.scores:
                     score(output, *[data[k] for k in score.input_keys])
 
-        if self.deterministic:
-            Settings.increase_global_seed()
-            torch.manual_seed(Settings.get_global_seed())
+        with ContextTimer('setting_seeds'):
+            if self.deterministic:
+                Settings.increase_global_seed()
+                torch.manual_seed(Settings.get_global_seed())
 
         return L
 

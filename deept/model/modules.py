@@ -3,7 +3,6 @@ import math
 import torch
 import torch.nn as nn
 
-from deept.util.timer import Timer
 from deept.util.globals import Settings
 
 
@@ -18,12 +17,10 @@ class MultiHeadAttention(nn.Module):
 
         self.att = DotProductAttention(dropout)
         
-        self.W_q = Timer(nn.Linear(D, D))
-        self.W_k = Timer(nn.Linear(D, D))
-        self.W_v = Timer(nn.Linear(D, D))
-        self.W_o = Timer(nn.Linear(D, D))
-
-        self.transpose = Timer(Transpose())
+        self.W_q = nn.Linear(D, D)
+        self.W_k = nn.Linear(D, D)
+        self.W_v = nn.Linear(D, D)
+        self.W_o = nn.Linear(D, D)
 
     def __call__(self, q, k, v, m=None):
         
@@ -37,13 +34,13 @@ class MultiHeadAttention(nn.Module):
         k = k.view(B, -1, self.H, self.Dh)
         v = v.view(B, -1, self.H, self.Dh)
 
-        q = self.transpose(q, 1, 2)
-        k = self.transpose(k, 1, 2)
-        v = self.transpose(v, 1, 2)
+        q = torch.transpose(q, 1, 2)
+        k = torch.transpose(k, 1, 2)
+        v = torch.transpose(v, 1, 2)
 
         o, a = self.att(q, k, v, m)
 
-        o = self.transpose(o, 1, 2)
+        o = torch.transpose(o, 1, 2)
         o = o.reshape(B, -1, self.D)
         o = self.W_o(o)
 
@@ -55,18 +52,16 @@ class DotProductAttention(nn.Module):
     def __init__(self, dropout):
         super().__init__()
 
-        self.matmul = Timer(MatMul())
-        self.transpose = Timer(Transpose())
-        self.softmax = Timer(nn.Softmax(-1))
-        self.dropout = Timer(nn.Dropout(dropout))
+        self.softmax = nn.Softmax(-1)
+        self.dropout = nn.Dropout(dropout)
 
     def __call__(self, q, k, v, m):
         
         D = q.shape[-1]
 
-        k = self.transpose(k, -2, -1)
+        k = torch.transpose(k, -2, -1)
 
-        a = self.matmul(q, k)
+        a = torch.matmul(q, k)
         a = a / math.sqrt(D)
 
         if m is not None:
@@ -75,7 +70,7 @@ class DotProductAttention(nn.Module):
         a = self.softmax(a)
         a = self.dropout(a)
 
-        o = self.matmul(a, v)
+        o = torch.matmul(a, v)
 
         return o, a
 
@@ -209,21 +204,3 @@ class LayerNormalization(nn.Module):
         x = x * self.a + self.b
 
         return x
-
-
-class Transpose(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, *args, **kwargs):
-        return torch.transpose(*args, **kwargs)
-
-
-class MatMul(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, *args, **kwargs):
-        return torch.matmul(*args, **kwargs)
