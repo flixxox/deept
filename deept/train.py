@@ -6,13 +6,13 @@ import torch
 
 from deept.util.trainer import Trainer
 from deept.util.globals import Settings, Context
-from deept.util.datapipe import create_dp_from_config
+from deept.data.datapipe import create_dp_from_config
 from deept.model.model import create_model_from_config
 from deept.model.scores import create_score_from_config
 from deept.util.debug import my_print, print_memory_usage
 from deept.util.checkpoint_manager import CheckpointManager
 from deept.model.optimizer import create_optimizer_from_config
-from deept.util.dataloader import create_dataloader_from_config
+from deept.data.dataloader import create_dataloader_from_config
 from deept.model.lr_scheduler import create_lr_scheduler_from_config
 from deept.util.config import (
     Config,

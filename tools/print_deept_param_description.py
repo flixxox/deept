@@ -4,8 +4,8 @@ import argparse
 
 import deept.model.model
 import deept.model.scores
-import deept.util.datapipe
-import deept.util.dataloader
+import deept.data.datapipe
+import deept.data.dataloader
 import deept.model.optimizer
 import deept.model.lr_scheduler
 from deept.util.debug import my_print

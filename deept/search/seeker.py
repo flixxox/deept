@@ -6,7 +6,7 @@ import torch
 
 from deept.util.globals import Settings
 from deept.util.debug import my_print, print_memory_usage
-from deept.util.postprocessing import get_postprocessing_fn
+from deept.data.postprocessing import get_postprocessing_fn
 
 
 class Seeker:

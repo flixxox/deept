@@ -3,13 +3,13 @@ from enum import Enum
 from typing import Union
 from dataclasses import dataclass
 
-import deept.search as dt_search
 import deept.model.model as dt_model
 from deept.util.debug import my_print
 import deept.model.scores as dt_scores
-import deept.util.datapipe as dt_datapipe
-import deept.util.dataloader as dt_dataloader
-import deept.util.postprocessing as dt_postprocess
+import deept.data.datapipe as dt_datapipe
+import deept.data.dataloader as dt_dataloader
+import deept.search.search_algorithm as dt_search
+import deept.data.postprocessing as dt_postprocess
 
 
 class CommonAcceptedInputs(str, Enum):
