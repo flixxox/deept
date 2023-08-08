@@ -1,5 +1,7 @@
 
 
+from functools import partial
+
 import torch
 import torchdata.datapipes as dp
 
@@ -58,6 +60,7 @@ def register_dp_overwrite(name):
 def create_dp_from_config(config, data_root, data_mask,
     name = '',
     chunk = False,
+    train = True,
     drop_last = True
 ):
 
@@ -82,16 +85,28 @@ def create_dp_from_config(config, data_root, data_mask,
 
     pipe = create_preprocessing_dp_from_config(config, pipe)
     len_fn = get_len_fn(config)
+    
+    if train:
 
-    pipe = (
-        pipe.max_token_bucketize(
-            max_token_count=config['batch_size'],
-            buffer_size=config['buffer_size_bucketing', 1000],
-            len_fn=len_fn,
-            include_padding=False
+        pipe = (
+            pipe.max_token_bucketize(
+                max_token_count = config['batch_size'],
+                buffer_size = config['buffer_size_bucketing', 1000],
+                len_fn = len_fn,
+                include_padding = False
+            )
+            .shuffle(buffer_size=config['buffer_size_batch_shuffling', 300])
         )
-        .shuffle(buffer_size=config['buffer_size_batch_shuffling', 300])
-    )
+
+    else:
+
+        pipe = pipe.bucketbatch(
+            batch_size = config['batch_size_search'],
+            batch_num = config['buffer_sort_search', 100],
+            drop_last = drop_last,
+            use_in_batch_shuffle = False,
+            sort_key = partial(__sort_fn_search, len_fn)
+        )
 
     pipe = create_collating_dp_from_config(config, pipe)
 
@@ -156,3 +171,7 @@ def get_len_fn(config):
         return __LEN_FN__[config['data_len_fn']]
     else:
         raise ValueError(f'Error! Unrecognized length function {config["data_len_fn"]}!')
+
+
+def __sort_fn_search(length_fn, batch):
+    return sorted(batch, key=length_fn)

@@ -10,7 +10,7 @@ from deept.model.model import create_model_from_config
 from deept.util.checkpoint_manager import CheckpointManager
 from deept.data.dataloader import create_dataloader_from_config
 from deept.util.debug import my_print, get_number_of_trainable_variables
-import deept.search.search_algorithm import create_search_algorithm_from_config
+from deept.search.search_algorithm import create_search_algorithm_from_config
 from deept.util.config import (
     Config,
     DeepTConfigDescription
@@ -66,10 +66,14 @@ def search(config):
         data_mask,
         name='search',
         chunk=False,
-        drop_last=False
+        train=False,
+        drop_last=False,
     )
 
-    dataloader = create_dataloader_from_config(config, datapipe, shuffle=False)
+    dataloader = create_dataloader_from_config(config, datapipe, 
+        shuffle=False,
+        num_worker_overwrite=1
+    )
 
     model = create_model_from_config(config)
     model = model.to(Settings.get_device())

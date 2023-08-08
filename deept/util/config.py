@@ -155,6 +155,14 @@ class DeepTConfigDescription:
             accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
         )
 
+        __CONFIG_DESC__['data']['batch_size_search'] = ConfigSpec(
+            description = """During search, the batch size specifies the number of samples, which will be sorted 
+                according to the length given by 'data_len_fn'. If you would like to consider a different sorting behavior
+                for search, you can implement a switch with Settings.is_training() in your length function.""",
+            required = True,
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
+        )
+
         __CONFIG_DESC__['data']['min_sample_size'] = ConfigSpec(
             description = """The smallest size a data sample should have. If a data sample is smaller it will be discarded.
                 Given in the quantity returned by 'data_len_fn'.""",
@@ -182,6 +190,13 @@ class DeepTConfigDescription:
         __CONFIG_DESC__['data']['buffer_size_batch_shuffling'] = ConfigSpec(
             description = """The buffer size of the last shuffling operation. These many batches will be buffered and shuffled.
             Note that all those batches need to be buffered in RAM for each worker.""",
+            required = False,
+            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
+        )
+
+        __CONFIG_DESC__['data']['buffer_sort_search'] = ConfigSpec(
+            description = """Those many batches are buffered and sorted in search. 
+                A higher value leads to better sorting but more RAM usage.""",
             required = False,
             accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
         )

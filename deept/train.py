@@ -79,18 +79,27 @@ def train(rank, config, world_size):
         config['data_train_root'],
         config['data_train_mask'],
         name='train',
-        chunk=True
+        chunk=True,
+        drop_last=True,
+        train=True
     )
 
     dev_datapipe = create_dp_from_config(config,
         config['data_dev_root'],
         config['data_dev_mask'],
         name='dev',
-        chunk=False
+        chunk=False,
+        drop_last=False,
+        train=True
     )
 
-    train_dataloader = create_dataloader_from_config(config, train_datapipe, shuffle=True)
-    dev_dataloader = create_dataloader_from_config(config, dev_datapipe, shuffle=False)
+    train_dataloader = create_dataloader_from_config(config, train_datapipe, 
+        shuffle=True
+    )
+
+    dev_dataloader = create_dataloader_from_config(config, dev_datapipe,
+        shuffle=False
+    )
 
     model = create_model_from_config(config)
     model.init_weights()
