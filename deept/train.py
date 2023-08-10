@@ -81,7 +81,7 @@ def train(rank, config, world_size):
         name='train',
         chunk=True,
         drop_last=True,
-        train=True
+        use_max_token_bucketize=True
     )
 
     dev_datapipe = create_dp_from_config(config,
@@ -90,7 +90,7 @@ def train(rank, config, world_size):
         name='dev',
         chunk=False,
         drop_last=False,
-        train=True
+        use_max_token_bucketize=True
     )
 
     train_dataloader = create_dataloader_from_config(config, train_datapipe, 

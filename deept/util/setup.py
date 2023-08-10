@@ -108,31 +108,33 @@ def setup_directories(config):
 
     def __maybe_create_dir(dir):
         from os import mkdir
-        if not isdir(dir) and Settings.rank() == 0:
+        if not isdir(dir):
             mkdir(dir)
 
-    Settings.add_dir('output_dir', config['output_folder'])
-    Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
-    Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
+    if Settings.rank() == 0:
 
-    if Settings.is_training():
+        Settings.add_dir('output_dir', config['output_folder'])
+        Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
+        Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
 
-        __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
-        __maybe_create_dir(Settings.get_dir('numbers_dir'))
+        if Settings.is_training():
 
-        assert isdir(Settings.get_dir('checkpoint_dir')), f"""Something went wrong in creating directories! 
-            Expected to have the directory {Settings.get_dir('checkpoint_dir')}"""
+            __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
+            __maybe_create_dir(Settings.get_dir('numbers_dir'))
 
-        assert isdir(Settings.get_dir('numbers_dir')), f"""Something went wrong in creating directories! 
-            Expected to have the directory {Settings.get_dir('numbers_dir')}"""
+            assert isdir(Settings.get_dir('checkpoint_dir')), f"""Something went wrong in creating directories! 
+                Expected to have the directory {Settings.get_dir('checkpoint_dir')}"""
 
-    else:
+            assert isdir(Settings.get_dir('numbers_dir')), f"""Something went wrong in creating directories! 
+                Expected to have the directory {Settings.get_dir('numbers_dir')}"""
 
-        Settings.add_dir('search_dir', join(config['output_folder'], 'search'))
-        __maybe_create_dir(Settings.get_dir('search_dir'))
+        else:
 
-        assert isdir(Settings.get_dir('search_dir')), f"""Something went wrong in creating directories! 
-            Expected to have the directory {Settings.get_dir('search_dir')}"""
+            Settings.add_dir('search_dir', join(config['output_folder'], 'search'))
+            __maybe_create_dir(Settings.get_dir('search_dir'))
+
+            assert isdir(Settings.get_dir('search_dir')), f"""Something went wrong in creating directories! 
+                Expected to have the directory {Settings.get_dir('search_dir')}"""
 
 def setup_torch(config):
     if config['deterministic', False]:

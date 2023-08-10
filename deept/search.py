@@ -66,8 +66,8 @@ def search(config):
         data_mask,
         name='search',
         chunk=False,
-        train=False,
         drop_last=False,
+        use_max_token_bucketize=False,
     )
 
     dataloader = create_dataloader_from_config(config, datapipe, 

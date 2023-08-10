@@ -60,7 +60,7 @@ def register_dp_overwrite(name):
 def create_dp_from_config(config, data_root, data_mask,
     name = '',
     chunk = False,
-    train = True,
+    use_max_token_bucketize = True,
     drop_last = True
 ):
 
@@ -86,7 +86,7 @@ def create_dp_from_config(config, data_root, data_mask,
     pipe = create_preprocessing_dp_from_config(config, pipe)
     len_fn = get_len_fn(config)
     
-    if train:
+    if use_max_token_bucketize:
 
         pipe = (
             pipe.max_token_bucketize(
