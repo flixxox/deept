@@ -191,7 +191,7 @@ class Trainer:
                 data[k] =  data[k].to(Settings.get_device())
 
         with torch.no_grad():
-            output, _ = self.model(*[data[k] for k in self.model.input_keys])
+            output, _ = self.model(*[data[k] for k in self.model_input_keys])
             self.criterion(output, *[data[k] for k in self.criterion.input_keys])
             for score in self.scores:
                 score(output, *[data[k] for k in score.input_keys])

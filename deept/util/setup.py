@@ -111,11 +111,14 @@ def setup_directories(config):
         if not isdir(dir):
             mkdir(dir)
 
-    if Settings.rank() == 0:
+    Settings.add_dir('output_dir', config['output_folder'])
+    Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
+    Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
 
-        Settings.add_dir('output_dir', config['output_folder'])
-        Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
-        Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
+    if not Settings.is_training():
+        Settings.add_dir('search_dir', join(config['output_folder'], 'search'))
+    
+    if Settings.rank() == 0:
 
         if Settings.is_training():
 
@@ -130,7 +133,6 @@ def setup_directories(config):
 
         else:
 
-            Settings.add_dir('search_dir', join(config['output_folder'], 'search'))
             __maybe_create_dir(Settings.get_dir('search_dir'))
 
             assert isdir(Settings.get_dir('search_dir')), f"""Something went wrong in creating directories! 
