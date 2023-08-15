@@ -42,7 +42,9 @@ def start(config):
         config['data_train_root'],
         config['data_train_mask'],
         name='train',
-        chunk=False
+        chunk=False,
+        drop_last=True,
+        use_max_token_bucketize=True
     )
 
     dataloader = create_dataloader_from_config(config,
@@ -51,6 +53,9 @@ def start(config):
     )
 
     voacb_tgt = Context['vocab_tgt']
+
+    effectiveness_accum = 0
+    steps = 0
 
     for item in dataloader:
 
@@ -66,7 +71,14 @@ def start(config):
         num_tokens = item['tgt'].shape[0] * item['tgt'].shape[1]
         num_pad_tokens = (item['tgt'] != voacb_tgt.PAD).sum()
 
-        my_print(f'Batch effectiveness: {num_pad_tokens/num_tokens:4.2f}')
+        cur_effectiveness = (num_pad_tokens/num_tokens)
+
+        my_print(f'Batch effectiveness: {cur_effectiveness:4.2f}')
+
+        effectiveness_accum += cur_effectiveness
+        steps += 1
+
+    my_print(f'Average effectiveness: {(effectiveness_accum/steps):4.2f}!')
 
     dataloader.shutdown()
 

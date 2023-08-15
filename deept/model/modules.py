@@ -14,8 +14,6 @@ class MultiHeadAttention(nn.Module):
         self.H = H
         self.D = D
         self.Dh = D // H
-
-        self.att = DotProductAttention(dropout)
         
         self.W_q = nn.Linear(D, D)
         self.W_k = nn.Linear(D, D)

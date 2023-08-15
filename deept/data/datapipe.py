@@ -79,7 +79,7 @@ def create_dp_from_config(config, data_root, data_mask,
 
     pipe = (
         pipe.webdataset()
-        .shuffle(buffer_size=config['buffer_size_shuffle_before_batching', 10000]) # Shuffle shards
+        .shuffle(buffer_size=config['buffer_size_shuffle_before_batching', 10000])
         .sharding_filter() # Distributes across processes
     )
 
