@@ -2,6 +2,8 @@ import math
 from contextlib import nullcontext
 
 import torch
+from torch import autocast
+from torch.cuda import amp
 
 from deept.util.timer import ContextTimer
 from deept.util.globals import Settings, Context
@@ -28,10 +30,14 @@ class Trainer:
         self.lr_scheduler = Context['lr_scheduler']
         self.scores = Context['scores']
 
-        if Trainer.do_ddp():
+        if Trainer.is_ddp():
             self.model_input_keys = self.model.module.input_keys
         else:
             self.model_input_keys = self.model.input_keys
+
+        if self.is_mpt():
+            my_print('Using mixed_precision training!')
+            self.scaler = amp.GradScaler()
 
     @staticmethod
     def create_trainer_from_config(config, train_dataloader, dev_dataloader, checkpoint_manager):
@@ -42,14 +48,18 @@ class Trainer:
             checkpoint_manager = checkpoint_manager,
             update_freq = config['update_freq'],
             allow_none_type_gradients = config['allow_none_type_gradients', False],
-            deterministic = config['deterministic', False]
+            deterministic = config['deterministic', False],
+            mixed_precision_training = config['mixed_precision_training', False]
         )
 
         return trainer
 
     @staticmethod
-    def do_ddp():
+    def is_ddp():
         return Settings.get_number_of_workers() > 1
+
+    def is_mpt(self):
+        return Settings.is_gpu() and self.mixed_precision_training
 
     def train(self):
 
@@ -131,15 +141,18 @@ class Trainer:
 
         L_accum = 0
 
-        with self.model.no_sync() if Trainer.do_ddp() else nullcontext():
+        with self.model.no_sync() if Trainer.is_ddp() else nullcontext():
             for i in range(len(data)-1):
                 L = self.train_ministep(data[i])
                 L_accum += L
-        
+
         L_accum += self.train_ministep(data[-1])
         
         with ContextTimer('write_L_to_file'):
             write_number_to_file('L', L_accum)
+
+        if self.is_mpt():
+            self.scaler.unscale_(self.optimizer)
 
         with ContextTimer('average_gradients'):
             for p in self.model.parameters():
@@ -150,7 +163,11 @@ class Trainer:
                         raise RuntimeError(f'Detected NoneType gradient!')
 
         with ContextTimer('optimizer_step'):
-            self.optimizer.step()
+            if self.is_mpt():
+                self.scaler.step(self.optimizer)
+                self.scaler.update() 
+            else:
+                self.optimizer.step()
             self.lr_scheduler.step()
             self.optimizer.zero_grad(set_to_none=True)
 
@@ -163,14 +180,21 @@ class Trainer:
                 if isinstance(v, torch.Tensor):
                     data[k] =  data[k].to(Settings.get_device())
 
-        with ContextTimer('model'):
-            output, _ = self.model(*[data[k] for k in self.model_input_keys])
+        with autocast(
+            device_type='cuda', dtype=torch.float16
+        ) if self.is_mpt() else nullcontext():
 
-        with ContextTimer('criterion'):
-            criterion, L = self.criterion(output, *[data[k] for k in self.criterion.input_keys])
+            with ContextTimer('model'):
+                output, _ = self.model(*[data[k] for k in self.model_input_keys])
+
+            with ContextTimer('criterion'):
+                criterion, L = self.criterion(output, *[data[k] for k in self.criterion.input_keys])
 
         with ContextTimer('backpropagation'):
-            criterion.backward()
+            if self.is_mpt():
+                self.scaler.scale(criterion).backward()
+            else:
+                criterion.backward()
 
         with ContextTimer('scores'):
             with torch.no_grad():
@@ -190,7 +214,9 @@ class Trainer:
             if isinstance(v, torch.Tensor):
                 data[k] =  data[k].to(Settings.get_device())
 
-        with torch.no_grad():
+        with torch.no_grad(), autocast(
+            device_type='cuda', dtype=torch.float16
+        ) if self.is_mpt() else nullcontext():
             output, _ = self.model(*[data[k] for k in self.model_input_keys])
             self.criterion(output, *[data[k] for k in self.criterion.input_keys])
             for score in self.scores:

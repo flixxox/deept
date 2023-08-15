@@ -47,8 +47,10 @@ class ContextTimer:
 
     def __enter__(self):
         if Settings.do_timing():
+            torch.cuda.synchronize()
             self.start()
 
     def __exit__(self, exception_type, exception_value, traceback):
         if Settings.do_timing():
+            torch.cuda.synchronize()
             self.end()
