@@ -76,7 +76,6 @@ def search(config):
     )
 
     model = create_model_from_config(config)
-    model = model.to(Settings.get_device())
     Context.add_context('model', model)
 
     checkpoint_manager = CheckpointManager.create_eval_checkpoint_manager_from_config(config)
@@ -84,9 +83,16 @@ def search(config):
 
     my_print(f'Trainable variables: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
 
+    if config['quantize_post_training', False]:
+        from deept.model.post_training_quantizer import PostTrainingQuantizer
+        quantizer = PostTrainingQuantizer.create_from_config(config)
+        Context.overwrite('model', quantizer.quantize(Context['model']))
+
+    Context.overwrite('model', model.to(Settings.get_device()))
+
     search_algorithm = create_search_algorithm_from_config(config)
 
-    seeker = Seeker.create_seeker_from_config(config,
+    seeker = Seeker.create_from_config(config,
         dataloader,
         search_algorithm,
         checkpoint_manager.checkpoint_count,

@@ -20,7 +20,7 @@ class Seeker:
         self.print_per_step = len(self.keys_print_per_step) > 0
 
     @staticmethod
-    def create_seeker_from_config(config, 
+    def create_from_config(config, 
         dataloader, search_algorithm, checkpoint_count, corpus_size):
         
         ckpt_suffix = config['checkpoint_path'].split('ckpt-')[-1].replace('.pt', '')
@@ -109,7 +109,7 @@ class Seeker:
         for k in self.search_algorithm.input_keys:
             inp = data[k].cpu().detach()
             inp = self.postprocessing_fn(k, inp)
-            num_tokens += sum([len(e) for e in inp])
+            num_tokens += sum([len(e.split(' ')) for e in inp])
         return num_tokens
 
     def print_search_result(self, cur_results, data):

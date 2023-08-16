@@ -20,6 +20,14 @@ class Context:
     @staticmethod
     def has_context(key):
         return key in Context.__CONTEXT
+    
+    @staticmethod
+    def overwrite(key, obj):
+        if key in Context.__CONTEXT:
+            Context.__CONTEXT[key] = obj
+        else:
+            from deept.util.debug import my_print
+            my_print(f'Warning! Context {key} has not been set yet!')
 
     def __class_getitem__(cls, key):
         return Context.__CONTEXT[key]
