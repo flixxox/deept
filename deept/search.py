@@ -88,8 +88,6 @@ def search(config):
         quantizer = PostTrainingQuantizer.create_from_config(config)
         Context.overwrite('model', quantizer.quantize(Context['model']))
 
-    Context.overwrite('model', model.to(Settings.get_device()))
-
     search_algorithm = create_search_algorithm_from_config(config)
 
     seeker = Seeker.create_from_config(config,
@@ -98,6 +96,8 @@ def search(config):
         checkpoint_manager.checkpoint_count,
         corpus_size
     )
+
+    my_print('Model:', Context['model'])
 
     my_print(f'Searching checkpoint {checkpoint_manager.checkpoint_count}!')
 

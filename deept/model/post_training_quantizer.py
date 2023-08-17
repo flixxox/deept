@@ -33,6 +33,8 @@ class PostTrainingQuantizer:
             f'Savings {((size_before-size_after)/size_before)*100:4.2f}%!'
         )
 
+        return model
+
     def quantize_dynamic(self, model):
         my_print('Applying dynamic quantization!')
         return torch.ao.quantization.quantize_dynamic(

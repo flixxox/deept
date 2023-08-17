@@ -139,8 +139,22 @@ def setup_directories(config):
                 Expected to have the directory {Settings.get_dir('search_dir')}"""
 
 def setup_torch(config):
+    
     if config['deterministic', False]:
         torch.use_deterministic_algorithms(True)
+
+    if not Settings.is_training() and config['quantize_post_training', False]:
+
+        backend = config['quantize_backend', 'x86']
+
+        if backend == 'x86':
+            my_print('Using quantization backend x86!')
+            torch.backends.quantized.engine = 'x86'
+        elif backend == 'qnnpack':
+            my_print('Using quantization backend qnnpack!')
+            torch.backends.quantized.engine = 'qnnpack'
+        else:
+            raise ValueError(f'Unrecognized quantization backend: {backend}! Accepted values ["x86", "qnnpack"].')
 
 def setup_cuda(config):
     torch.cuda.set_device(Settings.get_device())
