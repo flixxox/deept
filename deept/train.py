@@ -6,14 +6,7 @@ import torch
 
 from deept.util.trainer import Trainer
 from deept.util.globals import Settings, Context
-from deept.data.datapipe import create_dp_from_config
-from deept.model.model import create_model_from_config
-from deept.model.scores import create_score_from_config
 from deept.util.debug import my_print, print_memory_usage
-from deept.util.checkpoint_manager import CheckpointManager
-from deept.model.optimizer import create_optimizer_from_config
-from deept.data.dataloader import create_dataloader_from_config
-from deept.model.lr_scheduler import create_lr_scheduler_from_config
 from deept.util.config import (
     Config,
     DeepTConfigDescription
@@ -74,7 +67,71 @@ def train(rank, config, world_size):
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')
 
     torch.manual_seed(Settings.get_global_seed())
+
+    train_dataloader, dev_dataloader = create_dataloader(config)
     
+    model = create_model(config)
+    Context.add_context('model', model)
+
+    criterion = create_criterion(config)
+    Context.add_context('criterion', criterion)
+
+    scores = create_scores(config)
+    Context.add_context('scores', scores)
+
+    optimizer = create_optimizer(config)
+    Context.add_context('optimizer', optimizer)
+
+    lr_scheduler = create_lr_scheduler(config)
+    Context.add_context('lr_scheduler', lr_scheduler)
+
+    checkpoint_manager = create_checkpoint_manager(config)
+
+    if config['model_uses_post_training_quantization', False]:
+        from deept.model.quantization import prepare_model_for_qat
+        Context.overwrite('model', prepare_model_for_qat(config, Context['model']))
+
+    # == No modifications allowed anymore
+
+    send_to_device()
+
+    if config['number_of_gpus'] > 1:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+        Context['model'].overwrite('model', DDP(Context['model'], device_ids=[Settings.get_device()]))
+
+    trainer = Trainer.create_trainer_from_config(config,
+        train_dataloader,
+        dev_dataloader,
+        checkpoint_manager
+    )
+
+    my_print('Model:')
+    my_print(Context['model'])
+    my_print(f'Trainable variables: {sum(p.numel() for p in Context["model"].parameters() if p.requires_grad)}')
+    my_print(f'Start training at checkpoint {checkpoint_manager.get_checkpoint_number()}!')
+    print_memory_usage()
+
+    trainer.train()
+
+    train_dataloader.shutdown()
+    dev_dataloader.shutdown()
+
+    if config['average_last_checkpoints', False]:
+        checkpoint_manager.average_last_N_checkpoints(config['checkpoints_to_average'])
+
+    if config['average_last_after_best_checkpoints', False]:
+        checkpoint_manager.average_N_after_best_checkpoint(config['checkpoints_to_average'])
+
+    average_time_per_checkpoint_s = checkpoint_manager.checkpoint_duration_accum / checkpoint_manager.checkpoint_count
+    my_print(f'Average time per checkpoint: {average_time_per_checkpoint_s:4.2f}s {average_time_per_checkpoint_s/60:4.2f}min')
+
+    my_print('Done!')
+
+def create_dataloader(config):
+
+    from deept.data.datapipe import create_dp_from_config
+    from deept.data.dataloader import create_dataloader_from_config
+
     train_datapipe = create_dp_from_config(config, 
         config['data_train_root'],
         config['data_train_mask'],
@@ -101,61 +158,74 @@ def train(rank, config, world_size):
         shuffle=False
     )
 
+    return train_dataloader, dev_dataloader
+
+def create_model(config):
+
+    from deept.model.model import create_model_from_config
+
     model = create_model_from_config(config)
     model.init_weights()
-    model = model.to(Settings.get_device())
-    if config['number_of_gpus'] > 1:
-        from torch.nn.parallel import DistributedDataParallel as DDP
-        model = DDP(model, device_ids=[Settings.get_device()])
-    Context.add_context('model', model)
 
+    return model
+
+def create_optimizer(config):
+
+    from deept.util.globals import Context
+    from deept.model.optimizer import create_optimizer_from_config
+    
+    optimizer = create_optimizer_from_config(config, Context['model'].parameters())
+    return optimizer
+
+def create_criterion(config):
+
+    from deept.model.scores import create_score_from_config
+    
     criterion = create_score_from_config(config['criterion'], config)
-    criterion = criterion.to(Settings.get_device())
-    Context.add_context('criterion', criterion)
+    return criterion
+
+def create_scores(config):
+
+    from deept.model.scores import create_score_from_config
 
     scores = []
     if config['scores', None] is not None:
         for key in config['scores']:
             score = create_score_from_config(key, config)
-            score = score.to(Settings.get_device())
             scores.append(score)
-    Context.add_context('scores', scores)
 
-    optimizer = create_optimizer_from_config(config, model.parameters())
-    Context.add_context('optimizer', optimizer)
+    return scores
 
-    lr_scheduler = create_lr_scheduler_from_config(config, optimizer)
-    Context.add_context('lr_scheduler', lr_scheduler)
+def create_lr_scheduler(config):
 
-    my_print(f'Trainable variables: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
+    from deept.util.globals import Context
+    from deept.model.lr_scheduler import create_lr_scheduler_from_config
+
+    lr_scheduler = create_lr_scheduler_from_config(config, Context['optimizer'])
+    
+    return lr_scheduler
+
+def create_checkpoint_manager(config):
+
+    from deept.util.checkpoint_manager import CheckpointManager
 
     checkpoint_manager = CheckpointManager.create_train_checkpoint_manager_from_config(config)
     checkpoint_manager.restore_if_requested()
+    
+    return checkpoint_manager
 
-    trainer = Trainer.create_trainer_from_config(config,
-        train_dataloader,
-        dev_dataloader,
-        checkpoint_manager
-    )
+def send_to_device():
 
-    print_memory_usage()
-    my_print(f'Start training at checkpoint {checkpoint_manager.get_checkpoint_number()}!')
+    from deept.util.globals import Context, Settings
 
-    trainer.train()
+    scores = []
+    for score in Context['scores']:
+        score = score.to(Settings.get_device()) 
+        scores.append(score)
 
-    train_dataloader.shutdown()
-    dev_dataloader.shutdown()
-
-    if config['average_last_checkpoints', False]:
-        checkpoint_manager.average_last_N_checkpoints(config['checkpoints_to_average'])
-
-    if config['average_last_after_best_checkpoints', False]:
-        checkpoint_manager.average_N_after_best_checkpoint(config['checkpoints_to_average'])
-
-    average_time_per_checkpoint_s = checkpoint_manager.checkpoint_duration_accum / checkpoint_manager.checkpoint_count
-    my_print(f'Average time per checkpoint: {average_time_per_checkpoint_s:4.2f}s {average_time_per_checkpoint_s/60:4.2f}min')
-
-    my_print('Done!')
+    Context.overwrite('scores', scores)
+    Context.overwrite('model', Context['model'].to(Settings.get_device()))
+    Context.overwrite('criterion', Context['criterion'].to(Settings.get_device()))
 
 
 if __name__ == '__main__':

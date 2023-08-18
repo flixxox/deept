@@ -84,7 +84,7 @@ def search(config):
     my_print(f'Trainable variables: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
 
     if config['quantize_post_training', False]:
-        from deept.model.post_training_quantizer import PostTrainingQuantizer
+        from deept.model.quantization import PostTrainingQuantizer
         quantizer = PostTrainingQuantizer.create_from_config(config)
         Context.overwrite('model', quantizer.quantize(Context['model']))
 
