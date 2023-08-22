@@ -87,11 +87,11 @@ def train(rank, config, world_size):
 
     checkpoint_manager = create_checkpoint_manager(config)
 
-    if config['model_uses_post_training_quantization', False]:
+    if config['model_uses_qat', False]:
         from deept.model.quantization import prepare_model_for_qat
         Context.overwrite('model', prepare_model_for_qat(config, Context['model']))
 
-    # == No modifications allowed anymore
+    # == No user modifications allowed anymore
 
     send_to_device()
 

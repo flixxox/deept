@@ -65,7 +65,7 @@ class CheckpointManager:
 
         my_print(f'Loading weights from {self.load_weights_from}!')
 
-        Context['model'].init_weights_from_checkpoint()
+        Context['model'].init_weights_from_checkpoint(self.load_weights_from)
 
     def get_latest_checkpoint_path(self):
 

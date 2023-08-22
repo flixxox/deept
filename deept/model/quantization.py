@@ -6,21 +6,8 @@ from deept.util.globals import Settings
 
 
 def prepare_model_for_qat(config, model):
-    
-    model_fused = fuse_modules_if_applicable(model)
-
-    model = check_fused_model(model, model_fused)
 
     return model
-
-def fuse_modules_if_applicable(config, model):
-
-    fused_model = copy.deepcopy(model)
-
-    return model
-
-def check_fused_model(model, model_fused):
-    return model_fused
 
 
 class PostTrainingQuantizer:
