@@ -6,7 +6,7 @@ from deept.util.globals import Settings
 
 
 def prepare_model_for_qat(config, model):
-
+    # This might be needed if we support PyTorch quantization
     return model
 
 
@@ -28,7 +28,7 @@ class PostTrainingQuantizer:
 
         if self.quant_type == 'dynamic':
             model = self.quantize_dynamic(model)
-        elif self.quant_type == 'manual_calibration':
+        elif self.quant_type == 'calibration':
             model = model
         else:
             raise ValueError(f'Unrecognized quantization type {self.quant_type}!')

@@ -17,8 +17,6 @@ from deept.util.setup import (
     check_and_correct_requested_number_of_gpus
 )
 
-
-from deept_mt.quantization.quant_utils import create_activation_quantizer
 from deept_mt.quantization.quantized_modules import (
     QuantizedLinear,
     QuantizedLinearRelu
@@ -36,11 +34,9 @@ class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         
-        self.quantizer = create_activation_quantizer(4, 'MinMax')
-        self.linear = QuantizedLinear(5, 10, 4)
+        self.linear = QuantizedLinear(5, 10, 2)
 
     def __call__(self, x):
-        x = self.quantizer(x)
         x = self.linear(x)
         return x
 
@@ -58,6 +54,8 @@ def start(config):
 
     test_module = TestModule().to(Settings.get_device())
     x = (torch.rand(5,5).to(Settings.get_device()) * 100) - 50
+
+    test_module.eval()
 
     y = test_module(x)
 
