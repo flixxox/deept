@@ -12,7 +12,8 @@ from deept.util.debug import (
     my_print,
     print_summary,
     print_memory_usage,
-    write_number_to_file
+    write_number_to_file,
+    search_name_of_parameter
 )
 
 
@@ -160,7 +161,8 @@ class Trainer:
                     p.grad /= L_accum
                 else:
                     if not self.allow_none_type_gradients:
-                        raise RuntimeError(f'Detected NoneType gradient!')
+                        p_names = search_name_of_parameter(self.model, p)
+                        raise RuntimeError(f'Detected NoneType gradient! Name {p_names}, Shape {p.shape}, {p}')
 
         with ContextTimer('optimizer_step'):
             if self.is_mpt():

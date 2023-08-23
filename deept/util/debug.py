@@ -122,3 +122,11 @@ def write_number_to_file(filename, value):
     if Settings.rank() == 0:
         with open(join(Settings.get_dir('numbers_dir'), filename), 'a') as file:
             file.write(f'{value}\n')
+
+def search_name_of_parameter(model, param):
+    import torch
+    names = []
+    for name, p in model.named_parameters():
+        if torch.equal(p, param):
+            names.append(name)
+    return names

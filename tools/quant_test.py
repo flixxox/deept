@@ -74,5 +74,3 @@ if __name__ == '__main__':
     config = Config.parse_config({'config': config_file})
 
     start(config)
-
-    

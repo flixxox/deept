@@ -79,6 +79,7 @@ def start(config):
         steps += 1
 
     my_print(f'Average effectiveness: {(effectiveness_accum/steps):4.2f}!')
+    my_print(f'Steps: {(steps)}!')
 
     dataloader.shutdown()
 

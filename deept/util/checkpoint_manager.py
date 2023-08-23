@@ -39,7 +39,8 @@ class CheckpointManager:
             checkpoint_start_after = config['checkpoint_start_after', 0],
             best_indicator = config['best_checkpoint_indicator'],
             load_weights = config['load_weights', False],
-            load_weights_from = config['load_weights_from', ""]
+            load_weights_from = config['load_weights_from', ""],
+            strict_loading = config['checkpoint_strict_loading', True] 
         )
 
         return checkpoint_manager
@@ -47,7 +48,9 @@ class CheckpointManager:
     @staticmethod
     def create_eval_checkpoint_manager_from_config(config):
 
-        checkpoint_manager = CheckpointManager()
+        checkpoint_manager = CheckpointManager(
+            strict_loading = config['checkpoint_strict_loading', True] 
+        )
 
         return checkpoint_manager
 
@@ -96,7 +99,9 @@ class CheckpointManager:
 
         checkpoint = torch.load(path, map_location=Settings.get_device())
 
-        Context['model'].load_state_dict(checkpoint['model'])
+        Context['model'].load_state_dict(checkpoint['model'], 
+            strict=self.strict_loading
+        )
         self.best_score = checkpoint['best_score']
         self.ckpts_since_best = checkpoint['ckpts_since_best']
         self.step_count = checkpoint['step_count']

@@ -19,7 +19,7 @@ class PostTrainingQuantizer:
 
     def create_from_config(config):
         return PostTrainingQuantizer(
-            quant_type = config['quantization_type', 'dynamic']
+            quant_type = config['post_training_quant_type', 'dynamic']
         )
 
     def quantize(self, model):
@@ -28,6 +28,8 @@ class PostTrainingQuantizer:
 
         if self.quant_type == 'dynamic':
             model = self.quantize_dynamic(model)
+        elif self.quant_type == 'manual_calibration':
+            model = model
         else:
             raise ValueError(f'Unrecognized quantization type {self.quant_type}!')
 
