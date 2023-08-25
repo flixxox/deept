@@ -76,7 +76,7 @@ class DynamicState(nn.Module):
         Appends the current state s to the cache.
         Returns all saved states and the current state s.
         """
-        if Settings.is_training() or not self.stepwise:
+        if Settings.is_training() or Settings.is_calibration() or not self.stepwise:
             return s
         else:
             

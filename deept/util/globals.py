@@ -37,6 +37,7 @@ class Settings:
     """Internal config variables."""
 
     __IS_TRAIN  = None
+    __IS_CALIB  = False
     __TIME      = None
     __WORKERS   = None
     __GPU       = True
@@ -53,6 +54,14 @@ class Settings:
     @staticmethod
     def is_training():
         return Settings.__IS_TRAIN
+
+    @staticmethod
+    def set_calibration_flag(flag):
+        Settings.__IS_CALIB = flag
+
+    @staticmethod
+    def is_calibration():
+        return Settings.__IS_CALIB
 
     @staticmethod
     def set_time_flag(flag):
