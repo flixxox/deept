@@ -161,12 +161,8 @@ def create_dataloader(config):
     return train_dataloader, dev_dataloader
 
 def create_model(config):
-
     from deept.model.model import create_model_from_config
-
     model = create_model_from_config(config)
-    model.init_weights()
-
     return model
 
 def create_optimizer(config):
