@@ -50,7 +50,9 @@ class Trainer:
             update_freq = config['update_freq'],
             allow_none_type_gradients = config['allow_none_type_gradients', False],
             deterministic = config['deterministic', False],
-            mixed_precision_training = config['mixed_precision_training', False]
+            mixed_precision_training = config['mixed_precision_training', False],
+            print_per_step_summary = config['print_per_step_summary', False],
+            print_per_step_mem_usage = config['print_per_step_mem_usage', False]
         )
 
         return trainer
@@ -84,6 +86,12 @@ class Trainer:
 
                 L = self.train_step(data)
 
+                if self.print_per_step_summary:
+                    self.print_step_summary()
+
+                if self.print_per_step_mem_usage:
+                    print_memory_usage()
+
                 if self.checkpoint_manager.do_checkpoint_after_step():
                     self.do_checkpoint()
 
@@ -98,12 +106,8 @@ class Trainer:
     def do_checkpoint(self):
 
         time_passed_s = self.checkpoint_manager.timer_end()
-        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
 
-        score_summary = self.create_score_summary_dict()
-        write_scores_dict_to_files(score_summary, prefix='train')
-        score_summary['train_steps'] = self.checkpoint_manager.step_count-1
-        print_summary(True, checkpoint_number, **score_summary)
+        self.do_train_epoch_summary()
 
         eval_score_summary = self.eval()
 
@@ -128,17 +132,19 @@ class Trainer:
             self.eval_step(data)
             steps += 1
 
-        score_summary = self.create_score_summary_dict()
-        write_scores_dict_to_files(score_summary, prefix='dev')
-        score_summary['eval_steps'] = steps
-
-        print_summary(False, self.checkpoint_manager.get_checkpoint_number(), **score_summary)
+        self.do_eval_epoch_summary(steps)
 
         self.model.train()
 
         return score_summary
 
     def train_step(self, data):
+        # TODO: A couple of problems with multi-gpu training
+        # 1. DDP averages the gradients after synchronizaiton
+        # so I need to multiply every gradient by the number of workers
+        # to get the same gradient as with one GPU
+        # 2. I do not distribute L_accum. Every worker needs to have
+        # the same L_accum!
 
         L_accum = 0
 
@@ -224,14 +230,40 @@ class Trainer:
             for score in self.scores:
                 score(output, *[data[k] for k in score.input_keys])
 
+    def print_step_summary(self):
+        score_summary = self.create_score_summary_dict()
+        score_summary['train_steps'] = self.checkpoint_manager.step_count-1
+        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
+        print_summary(True, checkpoint_number, **score_summary)
+
+    def do_train_epoch_summary(self):
+        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
+        score_summary = self.create_score_summary_dict()
+        write_scores_dict_to_files(score_summary, prefix='train')
+        score_summary['train_steps'] = self.checkpoint_manager.step_count-1
+        print_summary(True, checkpoint_number, **score_summary)
+        self.reset_accumulators()
+
+    def do_eval_epoch_summary(self, steps):
+        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
+        score_summary = self.create_score_summary_dict()
+        write_scores_dict_to_files(score_summary, prefix='dev')
+        score_summary['eval_steps'] = steps
+        print_summary(False, checkpoint_number, **score_summary)
+        self.reset_accumulators()
+
     def create_score_summary_dict(self):
 
         score_summary = {}
-
-        criterion_values = self.criterion.average_and_reset_accumulators()
+        criterion_values = self.criterion.get_average_accumulator_values()
         score_summary.update(criterion_values)
 
         for score in self.scores:
-            score_summary.update(score.average_and_reset_accumulators())
+            score_summary.update(score.get_average_accumulator_values())
 
         return score_summary
+
+    def reset_accumulators(self):
+        self.criterion.reset_accumulators()
+        for score in self.scores:
+            score.reset_accumulators()

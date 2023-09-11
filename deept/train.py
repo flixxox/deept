@@ -97,7 +97,7 @@ def train(rank, config, world_size):
 
     if config['number_of_gpus'] > 1:
         from torch.nn.parallel import DistributedDataParallel as DDP
-        Context['model'].overwrite('model', DDP(Context['model'], device_ids=[Settings.get_device()]))
+        Context.overwrite('model', DDP(Context['model'], device_ids=[Settings.get_device()]))
 
     trainer = Trainer.create_trainer_from_config(config,
         train_dataloader,

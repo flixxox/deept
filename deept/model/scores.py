@@ -58,7 +58,7 @@ class ScoreAccummulator:
         self.L += L
         self.value += value
 
-    def average_and_reset(self):
+    def average(self):
 
         if isinstance(self.L, torch.Tensor):
             L = self.__maybe_distribute_and_to_float(self.L)
@@ -76,10 +76,11 @@ class ScoreAccummulator:
 
         self.last_averaged_value = (value / L)
 
+        return self.last_averaged_value
+
+    def reset(self):
         self.L = 0.
         self.value = 0.
-
-        return self.last_averaged_value
 
     def __maybe_distribute_and_to_float(self, tensor):
         if Settings.get_number_of_workers() > 1:
@@ -92,7 +93,7 @@ class Score(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.sub_scores = []
+        self.sub_scores = [] # Other Score objects
         self.accumulators = []
             
     def register_accumulator(self, name):
@@ -101,18 +102,22 @@ class Score(nn.Module):
     def register_subscore(self, score):
         self.sub_scores.append(score)
 
-    def average_and_reset_accumulators(self):
+    def get_average_accumulator_values(self):
 
         values = {}
 
         for sub_score in self.sub_scores:
-            sub_score_values = sub_score.average_and_reset_accumulators()
+            sub_score_values = sub_score.average()
             values.update(sub_score_values)
 
         for accumulator in self.accumulators:
-            values[accumulator.name] = accumulator.average_and_reset()
+            values[accumulator.name] = accumulator.average()
 
         return values
+
+    def reset_accumulators(self):
+        for accumulator in self.accumulators:
+            accumulator.reset()
 
 
 @register_score('CrossEntropy')
@@ -166,11 +171,11 @@ class CrossEntropy(Score):
 
         return ce, num_words
 
-    def average_and_reset_accumulators(self):
-        """We overwrite the average_and_reset_accumulators function to also calculate ppl."""
-        scores = super(CrossEntropy, self).average_and_reset_accumulators()
+    def get_average_accumulator_values(self):
+        """We overwrite the get_average_accumulator_values function to also calculate ppl."""
+        scores = super(CrossEntropy, self).get_average_accumulator_values()
         if self.calculate_ppl:
-            scores['ppl'] = self.__calculate_ppl(scores['ce'])
+            scores['ppl_smooth'] = self.__calculate_ppl(scores['ce'])
         return scores
 
     def __calculate_ppl(self, ce):
@@ -243,9 +248,9 @@ class LabelSmoothingCrossEntropyLoss(Score):
 
         return ce_smooth, L
 
-    def average_and_reset_accumulators(self):
-        """We overwrite the average_and_reset_accumulators function to also calculate ppl."""
-        scores = super(LabelSmoothingCrossEntropyLoss, self).average_and_reset_accumulators()
+    def get_average_accumulator_values(self):
+        """We overwrite the get_average_accumulator_values function to also calculate ppl."""
+        scores = super(LabelSmoothingCrossEntropyLoss, self).get_average_accumulator_values()
         if self.calculate_ppl:
             scores['ppl_smooth'] = self.__calculate_ppl(scores['ce_smooth'])
         return scores
