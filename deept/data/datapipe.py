@@ -64,9 +64,12 @@ def create_dp_from_config(config, data_root, data_mask,
     drop_last = True
 ):
 
+    if name != '':
+        name = ' ' + name
+
     user_dp_overwrite_key = config['data_dp_overwrite', '']
     if user_dp_overwrite_key != '' and user_dp_overwrite_key in __DP_OVERWRITE__:
-        return create_dp_overwrite_from_config(config)
+        return create_dp_overwrite_from_config(config, data_root, data_mask, name=name, chunk=chunk)
 
     pipe = (
         dp.iter.FileLister(root=data_root, masks=data_mask, recursive=False, abspath=True)
@@ -110,14 +113,12 @@ def create_dp_from_config(config, data_root, data_mask,
 
     pipe = create_collating_dp_from_config(config, pipe)
 
-    if Settings.is_gpu():
+    if Settings.is_gpu() and config['pin_memory', True]:
+        my_print(f'Datapipe{name}: pin memory!')
         pipe = pipe.pin_memory()
     
     if chunk:
         pipe = pipe.batch(batch_size=config['update_freq'], drop_last=drop_last)
-    
-    if name != '':
-        name = ' ' + name
 
     my_print(f'Created datapipe{name}!')
 
@@ -144,9 +145,9 @@ def create_collating_dp_from_config(config, source_dp):
     else:
         raise ValueError(f'Error! Unrecognized collating datapipe {config["data_collate"]}!')
 
-def create_dp_overwrite_from_config(config):
+def create_dp_overwrite_from_config(config, *args, **kwargs):
     user_dp_overwrite_key = config['data_dp_overwrite']
-    datapipe = __DP_OVERWRITE__[user_dp_overwrite_key].create_from_config(config)
+    datapipe = __DP_OVERWRITE__[user_dp_overwrite_key].create_from_config(config, *args, **kwargs)
     my_print('Overwrote datapipe!')
     return datapipe
 
@@ -175,3 +176,21 @@ def get_len_fn(config):
 
 def __sort_fn_search(length_fn, batch):
     return sorted(batch, key=length_fn)
+
+
+@register_dp_overwrite('webdataset_inspection')
+class WebDatasetInspectionDataPipe:
+
+    @staticmethod
+    def create_from_config(config, data_root, data_mask, name = '', chunk = False):
+
+        pipe = (
+            dp.iter.FileLister(root=data_root, masks=data_mask, recursive=False, abspath=True)
+            .open_files(mode="b")
+            .load_from_tar()
+        )
+
+        pipe = create_decoding_dp_from_config(config, pipe)
+        pipe = pipe.webdataset()
+
+        return pipe
