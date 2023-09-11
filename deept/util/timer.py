@@ -54,3 +54,9 @@ class ContextTimer:
         if Settings.do_timing():
             torch.cuda.synchronize()
             self.end()
+
+    def get_time(self):
+        return ContextTimer.timings[self.name]
+    
+    def reset(self):
+        ContextTimer.timings[self.name] = 0.

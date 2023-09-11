@@ -1,8 +1,9 @@
-# python3 /home/fschmidt/code/deept/tools/text_corpus_to_webdataset.py \
+
+# echo 'export LD_LIBRARY_PATH=/home/fschmidt/lib/libffi-3.4.4/lib:$LD_LIBRARY_PATH && . /home/fschmidt/lib/deept-venv/bin/activate && python3 /home/fschmidt/code/deept/tools/text_corpus_to_webdataset.py \
 # --corpus-files /home/fschmidt/data/wmt14/en-de/classical/train.en /home/fschmidt/data/wmt14/en-de/classical/train.de \
 # --sample-names source target \
 # --output-folder /home/fschmidt/data/wmt14/en-de/webdataset/train \
-# --output-name train --number-of-shards 16
+# --output-name train --number-of-shards 16' | qsub -N text_corpus_to_webdataset -S /bin/bash -o /home/fschmidt/data/wmt14/en-de/webdataset/train -e /home/fschmidt/data/wmt14/en-de/webdataset/train -l h_rss=16G -l h_rt=168:00:00 -l gpu=0 -l num_proc=1
 
 import _setup_env
 
@@ -13,6 +14,7 @@ import webdataset as wds
 from os.path import isdir, isfile, join
 
 from deept.util.debug import my_print
+from deept.util.timer import ContextTimer
 
 def parse_cli_arguments():
 
@@ -102,11 +104,14 @@ def write(args):
     buffer_size = args['shuffle_before_sharding_buffer_size']
     write_i = 0
 
+    timer_tar_writer = ContextTimer('timer_tar_writer')
+    timer_tar_writer.start()
+
     assert len(sinks) == nb_of_sinks
 
-    for i, lines in enumerate(zip(*files)):
+    my_print('Start reading files!')
 
-        print(f'Read {i} samples.', end='\r')
+    for i, lines in enumerate(zip(*files)):
         
         lines = list(lines)
         
@@ -121,16 +126,28 @@ def write(args):
 
         if len(buffer) < buffer_size:
             buffer.append(sample)
+            if len(buffer) == buffer_size:
+                my_print('Buffer full! Start writing to sink!')
         else:
             idx = rng.randint(0, len(buffer)-1)
             val, buffer[idx] = buffer[idx], sample
             sinks[write_i%nb_of_sinks].write(val)
             write_i += 1
+
+        if i % 100000 == 0:
+            timer_tar_writer.end()
+            my_print(f'Read {i} samples. Took {timer_tar_writer.get_time():4.3f}s!')
+            timer_tar_writer.reset()
+            timer_tar_writer.start()
+
+    my_print('Emptying buffer!')
     
     while buffer:
         idx = rng.randint(0, len(buffer)-1)
         sinks[write_i%nb_of_sinks].write(buffer.pop(idx))
         write_i += 1
+
+    my_print('Closing sinks and files!')
     
     for sink in sinks:
         sink.close()

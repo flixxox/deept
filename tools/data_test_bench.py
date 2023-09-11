@@ -66,22 +66,21 @@ def start(config):
             item['out'].shape[1] <= config['max_sample_size']), (f"""Error! Exceeded sentence length! 
                 src {item['src'].shape} tgt {item['src'].shape}!""")
 
-        #my_print('===')
-        # my_print(f'Source ', item['src'])
-        # my_print(f'Target ', item['tgt'])
-        # my_print(item['tgt'].shape)
+        my_print('===')
+        my_print(f'Source ', item['src'])
+        my_print(f'Target ', item['tgt'])
+        my_print(item['tgt'].shape)
 
         num_tokens = item['tgt'].shape[0] * item['tgt'].shape[1]
         num_pad_tokens = (item['tgt'] != voacb_tgt.PAD).sum()
 
         cur_effectiveness = (num_pad_tokens/num_tokens)
 
-        #my_print(f'Batch effectiveness: {cur_effectiveness:4.2f}')
+        my_print(f'Batch effectiveness: {cur_effectiveness:4.2f}')
 
         effectiveness_accum += cur_effectiveness
         steps += 1
         num_sentences += item['tgt'].shape[0]
-        print(num_sentences, end='\r')
 
     my_print(f'Average effectiveness: {(effectiveness_accum/steps):4.2f}!')
     my_print(f'Steps: {(steps)}!')
