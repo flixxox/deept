@@ -79,7 +79,7 @@ class Trainer:
         while self.checkpoint_manager.keep_going():
 
             for data in self.train_dataloader:
-
+                
                 data_loading_timer.end()
 
                 assert len(data) == self.update_freq

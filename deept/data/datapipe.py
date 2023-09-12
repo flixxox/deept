@@ -3,7 +3,7 @@
 from functools import partial
 
 import torch
-import torchdata.datapipes as dp
+import webdataset as wds
 
 from deept.util.debug import my_print
 from deept.util.globals import Settings, Context
@@ -71,20 +71,19 @@ def create_dp_from_config(config, data_root, data_mask,
     if user_dp_overwrite_key != '' and user_dp_overwrite_key in __DP_OVERWRITE__:
         return create_dp_overwrite_from_config(config, data_root, data_mask, name=name, chunk=chunk)
 
-    pipe = (
-        dp.iter.FileLister(root=data_root, masks=data_mask, recursive=False, abspath=True)
-        .shuffle(buffer_size=100)
-        .open_files(mode="b")
-        .load_from_tar()
+    from os.path import join
+
+    pipe = wds.DataPipeline(
+        wds.SimpleShardList(join(data_root, data_mask)),
+        wds.shuffle(config['buffer_size_shards', 100]),
+        wds.split_by_node,
+        wds.split_by_worker,
+        wds.tarfile_to_samples()
     )
 
     pipe = create_decoding_dp_from_config(config, pipe)
 
-    pipe = (
-        pipe.webdataset()
-        .shuffle(buffer_size=config['buffer_size_shuffle_before_batching', 10000])
-        .sharding_filter() # Distributes across processes
-    )
+    pipe = pipe.shuffle(buffer_size=config['buffer_size_samples', 10000])
 
     pipe = create_preprocessing_dp_from_config(config, pipe)
     len_fn = get_len_fn(config)
@@ -98,7 +97,7 @@ def create_dp_from_config(config, data_root, data_mask,
                 len_fn = len_fn,
                 include_padding = False
             )
-            .shuffle(buffer_size=config['buffer_size_batch_shuffling', 300])
+            .shuffle(buffer_size=config['buffer_size_batches', 300])
         )
 
     else:
@@ -183,6 +182,8 @@ class WebDatasetInspectionDataPipe:
 
     @staticmethod
     def create_from_config(config, data_root, data_mask, name = '', chunk = False):
+        
+        import torchdata.datapipes as dp
 
         pipe = (
             dp.iter.FileLister(root=data_root, masks=data_mask, recursive=False, abspath=True)

@@ -3,11 +3,13 @@ import _setup_env
 
 import argparse
 
+
 from deept.util.setup import setup
 from deept.util.config import Config
 from deept.util.debug import my_print
 from deept.util.globals import Context
 from deept.util.setup import import_user_code
+from deept.util.debug import print_memory_usage
 from deept.data.datapipe import create_dp_from_config
 from deept.data.dataloader import create_dataloader_from_config
 
@@ -66,10 +68,7 @@ def start(config):
             item['out'].shape[1] <= config['max_sample_size']), (f"""Error! Exceeded sentence length! 
                 src {item['src'].shape} tgt {item['src'].shape}!""")
 
-        my_print('===')
-        my_print(f'Source ', item['src'])
-        my_print(f'Target ', item['tgt'])
-        my_print(item['tgt'].shape)
+        my_print('========')
 
         num_tokens = item['tgt'].shape[0] * item['tgt'].shape[1]
         num_pad_tokens = (item['tgt'] != voacb_tgt.PAD).sum()
@@ -77,6 +76,8 @@ def start(config):
         cur_effectiveness = (num_pad_tokens/num_tokens)
 
         my_print(f'Batch effectiveness: {cur_effectiveness:4.2f}')
+        my_print(f'Target length: {item["tgt"].shape[1]}')
+        print_memory_usage()
 
         effectiveness_accum += cur_effectiveness
         steps += 1

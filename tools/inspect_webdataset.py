@@ -50,7 +50,7 @@ def start(config):
     num_sentences = 0
 
     for item in datapipe:
-        print(item['__key__'])
+        print(num_sentences, end='\r')
         num_sentences += 1
 
     print(num_sentences)
