@@ -84,7 +84,7 @@ class Trainer:
 
                 assert len(data) == self.update_freq
 
-                L = self.train_step(data)
+                self.train_step(data)
 
                 if self.print_per_step_summary:
                     self.print_step_summary()
@@ -146,7 +146,7 @@ class Trainer:
         # 2. I do not distribute L_accum. Every worker needs to have
         # the same L_accum!
 
-        L_accum = 0
+        L_accum = torch.tensor([0.], requires_grad=False, device=Settings.get_device())
 
         with self.model.no_sync() if Trainer.is_ddp() else nullcontext():
             for i in range(len(data)-1):
@@ -156,7 +156,7 @@ class Trainer:
         L_accum += self.train_ministep(data[-1])
         
         with ContextTimer('write_L_to_file'):
-            write_number_to_file('L', L_accum)
+            write_number_to_file('L', int(L_accum.cpu().numpy()))
 
         if self.is_mpt():
             self.scaler.unscale_(self.optimizer)
@@ -178,25 +178,21 @@ class Trainer:
                 self.optimizer.step()
             self.lr_scheduler.step()
             self.optimizer.zero_grad(set_to_none=True)
-
-        return L_accum
     
     def train_ministep(self, data):
         
         with ContextTimer('send_to_gpu'):
-            for k, v in data.items():
-                if isinstance(v, torch.Tensor):
-                    data[k] =  data[k].to(Settings.get_device())
+            data['tensors'] = data['tensors'].to(Settings.get_device())
 
         with autocast(
             device_type='cuda', dtype=torch.float16
         ) if self.is_mpt() else nullcontext():
 
             with ContextTimer('model'):
-                output, _ = self.model(*[data[k] for k in self.model_input_keys])
+                output, _ = self.model(*[data['tensors'].get(k) for k in self.model_input_keys])
 
             with ContextTimer('criterion'):
-                criterion, L = self.criterion(output, *[data[k] for k in self.criterion.input_keys])
+                criterion, L = self.criterion(output, *[data['tensors'].get(k) for k in self.criterion.input_keys])
 
         with ContextTimer('backpropagation'):
             if self.is_mpt():
@@ -207,28 +203,28 @@ class Trainer:
         with ContextTimer('scores'):
             with torch.no_grad():
                 for score in self.scores:
-                    score(output, *[data[k] for k in score.input_keys])
+                    score(output, *[data['tensors'][k] for k in score.input_keys])
 
         with ContextTimer('setting_seeds'):
             if self.deterministic:
                 Settings.increase_global_seed()
                 torch.manual_seed(Settings.get_global_seed())
 
+        L = L.detach()
+
         return L
 
     def eval_step(self, data):
         
-        for k, v in data.items():
-            if isinstance(v, torch.Tensor):
-                data[k] =  data[k].to(Settings.get_device())
+        data['tensors'] = data['tensors'].to(Settings.get_device())
 
         with torch.no_grad(), autocast(
             device_type='cuda', dtype=torch.float16
         ) if self.is_mpt() else nullcontext():
-            output, _ = self.model(*[data[k] for k in self.model_input_keys])
-            self.criterion(output, *[data[k] for k in self.criterion.input_keys])
+            output, _ = self.model(*[data['tensors'].get(k) for k in self.model_input_keys])
+            self.criterion(output, *[data['tensors'].get(k) for k in self.criterion.input_keys])
             for score in self.scores:
-                score(output, *[data[k] for k in score.input_keys])
+                score(output, *[data['tensors'].get(k) for k in score.input_keys])
 
     def print_step_summary(self):
         score_summary = self.create_score_summary_dict()

@@ -49,14 +49,16 @@ class ScoreAccummulator:
 
     def __init__(self, name):
 
-        self.L = 0.
-        self.value = 0.
+        self.L = torch.tensor([0.], requires_grad=False, device=Settings.get_device())
+        self.value = torch.tensor([0.], requires_grad=False, device=Settings.get_device())
         self.name = name
         self.last_averaged_value = 0.
 
     def increase(self, value, L):
-        self.L += L
-        self.value += value
+
+        with torch.no_grad():
+            self.L += L
+            self.value += value
 
     def average(self):
 
@@ -79,8 +81,8 @@ class ScoreAccummulator:
         return self.last_averaged_value
 
     def reset(self):
-        self.L = 0.
-        self.value = 0.
+        self.L[0] = 0.
+        self.value[0] = 0.
 
     def __maybe_distribute_and_to_float(self, tensor):
         if Settings.get_number_of_workers() > 1:

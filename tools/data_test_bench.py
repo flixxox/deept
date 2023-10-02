@@ -62,26 +62,32 @@ def start(config):
 
     for item in dataloader:
 
+        tensors = item['tensors']
+        src = tensors.get('src')
+        tgt = tensors.get('tgt')
+        out = tensors.get('out')
+
         assert (
-            item['src'].shape[1] <= config['max_sample_size'] and 
-            item['tgt'].shape[1] <= config['max_sample_size'] and
-            item['out'].shape[1] <= config['max_sample_size']), (f"""Error! Exceeded sentence length! 
-                src {item['src'].shape} tgt {item['src'].shape}!""")
+            src.shape[1] <= config['max_sample_size'] and 
+            tgt.shape[1] <= config['max_sample_size'] and
+            out.shape[1] <= config['max_sample_size']), (f"""Error! Exceeded sentence length! 
+                src {src.shape} tgt {tgt.shape}!""")
 
         my_print('========')
 
-        num_tokens = item['tgt'].shape[0] * item['tgt'].shape[1]
-        num_pad_tokens = (item['tgt'] != voacb_tgt.PAD).sum()
+        num_tokens = tgt.shape[0] * tgt.shape[1]
+        num_pad_tokens = (tgt == voacb_tgt.PAD).sum()
 
-        cur_effectiveness = (num_pad_tokens/num_tokens)
+        cur_effectiveness = 1-(num_pad_tokens/num_tokens)
 
         my_print(f'Batch effectiveness: {cur_effectiveness:4.2f}')
-        my_print(f'Target length: {item["tgt"].shape[1]}')
+        my_print(f'L: {num_tokens-num_pad_tokens:4.2f}')
+        my_print(f'Target length: {tgt.shape[1]}')
         print_memory_usage()
 
         effectiveness_accum += cur_effectiveness
         steps += 1
-        num_sentences += item['tgt'].shape[0]
+        num_sentences += tgt.shape[0]
 
     my_print(f'Average effectiveness: {(effectiveness_accum/steps):4.2f}!')
     my_print(f'Steps: {(steps)}!')
