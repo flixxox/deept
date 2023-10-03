@@ -4,6 +4,7 @@ from contextlib import nullcontext
 import torch
 from torch import autocast
 from torch.cuda import amp
+import torch.distributed as dist
 
 from deept.util.timer import ContextTimer
 from deept.util.globals import Settings, Context
@@ -47,6 +48,7 @@ class Trainer:
             train_dataloader = train_dataloader,
             dev_dataloader = dev_dataloader,
             checkpoint_manager = checkpoint_manager,
+            num_workers = Settings.get_number_of_workers(),
             update_freq = config['update_freq'],
             allow_none_type_gradients = config['allow_none_type_gradients', False],
             deterministic = config['deterministic', False],
@@ -132,19 +134,13 @@ class Trainer:
             self.eval_step(data)
             steps += 1
 
-        self.do_eval_epoch_summary(steps)
+        score_summary = self.do_eval_epoch_summary(steps)
 
         self.model.train()
 
         return score_summary
 
     def train_step(self, data):
-        # TODO: A couple of problems with multi-gpu training
-        # 1. DDP averages the gradients after synchronizaiton
-        # so I need to multiply every gradient by the number of workers
-        # to get the same gradient as with one GPU
-        # 2. I do not distribute L_accum. Every worker needs to have
-        # the same L_accum!
 
         L_accum = torch.tensor([0.], requires_grad=False, device=Settings.get_device())
 
@@ -154,6 +150,9 @@ class Trainer:
                 L_accum += L
 
         L_accum += self.train_ministep(data[-1])
+
+        if Trainer.is_ddp():
+            dist.all_reduce(L_accum, op=dist.ReduceOp.SUM)
         
         with ContextTimer('write_L_to_file'):
             write_number_to_file('L', int(L_accum.cpu().numpy()))
@@ -164,7 +163,7 @@ class Trainer:
         with ContextTimer('average_gradients'):
             for p in self.model.parameters():
                 if p.grad is not None:
-                    p.grad /= L_accum
+                    p.grad *= (self.num_workers/L_accum)
                 else:
                     if not self.allow_none_type_gradients:
                         p_names = search_name_of_parameter(self.model, p)
@@ -247,6 +246,7 @@ class Trainer:
         score_summary['eval_steps'] = steps
         print_summary(False, checkpoint_number, **score_summary)
         self.reset_accumulators()
+        return score_summary
 
     def create_score_summary_dict(self):
 
