@@ -50,12 +50,11 @@ class Seeker:
 
         for data in self.dataloader:
             
-            for k in self.search_algorithm.input_keys:
-                data[k] =  data[k].to(Settings.get_device())
+            data['tensors'] =  data['tensors'].to(Settings.get_device())
 
             start_step = time.perf_counter()
 
-            cur_results = self.search_algorithm(*[data[k] for k in self.search_algorithm.input_keys])
+            cur_results = self.search_algorithm(*[data['tensors'][k] for k in self.search_algorithm.input_keys])
 
             end_step = time.perf_counter()
             step_times.append((end_step - start_step))

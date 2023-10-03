@@ -177,7 +177,7 @@ class CrossEntropy(Score):
         """We overwrite the get_average_accumulator_values function to also calculate ppl."""
         scores = super(CrossEntropy, self).get_average_accumulator_values()
         if self.calculate_ppl:
-            scores['ppl_smooth'] = self.__calculate_ppl(scores['ce'])
+            scores['ppl'] = self.__calculate_ppl(scores['ce'])
         return scores
 
     def __calculate_ppl(self, ce):

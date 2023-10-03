@@ -108,7 +108,7 @@ def train(rank, config, world_size):
     my_print('Model:')
     my_print(Context['model'])
     my_print(f'Trainable variables: {sum(p.numel() for p in Context["model"].parameters() if p.requires_grad)}')
-    my_print(f'Device: {Settings.get_device()}')
+    print(f'Worker {Settings.rank()}: Device: {Settings.get_device()}')
     my_print(f'Start training at checkpoint {checkpoint_manager.get_checkpoint_number()}!')
     print_memory_usage()
 
