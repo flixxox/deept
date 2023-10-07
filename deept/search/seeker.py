@@ -106,7 +106,7 @@ class Seeker:
     def get_number_of_tokens(self, data):
         num_tokens = 0 
         for k in self.search_algorithm.input_keys:
-            inp = data[k].cpu().detach()
+            inp = data['tensors'].get(k).cpu().detach()
             inp = self.postprocessing_fn(k, inp)
             num_tokens += sum([len(e.split(' ')) for e in inp])
         return num_tokens
@@ -120,8 +120,8 @@ class Seeker:
         for k in names:
             if k in cur_results:
                 values.append(cur_results[k])
-            elif k in data:
-                d = data[k].cpu().detach()
+            elif k in list(data['tensors'].keys()):
+                d = data['tensors'].get(k).cpu().detach()
                 values.append(self.postprocessing_fn(k, d))
             else:
                 raise ValueError(f'Error! Key {k} of search_print_per_step_keys not valid!')

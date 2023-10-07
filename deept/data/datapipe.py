@@ -174,7 +174,7 @@ def get_len_fn(config):
 
 
 def __sort_fn_search(length_fn, batch):
-    return sorted(batch, key=length_fn)
+    return sorted(batch, key=length_fn, reverse=True)
 
 
 @register_dp_overwrite('webdataset_inspection')
