@@ -5,8 +5,8 @@ description = ""
 authors = ["Felix <felix.schmidt3@rwth-aachen.de>"]
 
 [tool.poetry.dependencies]
-torch = {url = "https://download.pytorch.org/whl/cu118/torch-2.0.1%2Bcu118-cp311-cp311-linux_x86_64.whl"}
-python = "^3.11.4"
+torch = {url = "https://download.pytorch.org/whl/cu121/torch-2.1.1%2Bcu121-cp311-cp311-linux_x86_64.whl"}
+python = ">=3.11.6,<3.13"
 numpy = "^1.25.0"
 pyyaml = "^6.0"
 webdataset = "^0.2.48"
