@@ -6,7 +6,6 @@ from torch import autocast
 from torch.cuda import amp
 import torch.distributed as dist
 
-from deept.util.timer import ContextTimer
 from deept.util.globals import Settings, Context
 from deept.components.scores import write_scores_dict_to_files
 from deept.util.debug import (
@@ -37,10 +36,6 @@ class Trainer:
         else:
             self.model_input_keys = self.model.input_keys
 
-        if self.is_mpt():
-            my_print('Using mixed_precision training!')
-            self.scaler = amp.GradScaler()
-
     @staticmethod
     def create_trainer_from_config(config, train_dataloader, dev_dataloader, checkpoint_manager):
 
@@ -54,7 +49,8 @@ class Trainer:
             deterministic = config['deterministic', False],
             mixed_precision_training = config['mixed_precision_training', False],
             print_per_step_summary = config['print_per_step_summary', False],
-            print_per_step_mem_usage = config['print_per_step_mem_usage', False]
+            print_per_step_mem_usage = config['print_per_step_mem_usage', False],
+            average_gradients = config['average_gradients', True]
         )
 
         return trainer
@@ -63,26 +59,16 @@ class Trainer:
     def is_ddp():
         return Settings.get_number_of_workers() > 1
 
-    def is_mpt(self):
-        return Settings.is_gpu() and self.mixed_precision_training
-
     def train(self):
 
         self.model.train()
         self.model.zero_grad(set_to_none=True)
 
-        self.train_dataloader.seed(self.checkpoint_manager.epoch_count)
-
         self.checkpoint_manager.timer_start()
-
-        data_loading_timer = ContextTimer('data_loading')
-        data_loading_timer.start()
 
         while self.checkpoint_manager.keep_going():
 
             for data in self.train_dataloader:
-                
-                data_loading_timer.end()
 
                 assert len(data) == self.update_freq
 
@@ -100,7 +86,7 @@ class Trainer:
                     if not self.checkpoint_manager.keep_going():
                         return
 
-                data_loading_timer.start()
+            for scheduler in self.lr_schedulers: scheduler.epoch()
 
             if self.checkpoint_manager.do_checkpoint_after_epoch():
                 self.do_checkpoint()
@@ -118,16 +104,11 @@ class Trainer:
 
         self.checkpoint_manager.save(eval_score_summary)
 
-        if Settings.do_timing():
-            ContextTimer.print_summary()
-
         self.checkpoint_manager.timer_start()
 
     def eval(self):
 
         self.model.eval()
-
-        self.dev_dataloader.seed(self.checkpoint_manager.epoch_count)
 
         steps = 0
         for data in self.dev_dataloader:
@@ -142,6 +123,8 @@ class Trainer:
 
     def train_step(self, data):
 
+        for opt in self.optimizers: opt.zero_grad(set_to_none=True)
+
         L_accum = torch.tensor([0.], requires_grad=False, device=Settings.get_device())
 
         with self.model.no_sync() if Trainer.is_ddp() else nullcontext():
@@ -154,74 +137,59 @@ class Trainer:
         if Trainer.is_ddp():
             dist.all_reduce(L_accum, op=dist.ReduceOp.SUM)
         
-        with ContextTimer('write_L_to_file'):
-            write_number_to_file('L', int(L_accum.cpu().numpy()))
+        write_number_to_file('L', int(L_accum.cpu().numpy()))
 
-        if self.is_mpt():
-            self.scaler.unscale_(self.optimizer)
-
-        with ContextTimer('average_gradients'):
-            for p in self.model.parameters():
-                if p.grad is not None:
+        for p in self.model.parameters():
+            if p.grad is not None:
+                if self.average_gradients:
                     p.grad *= (self.num_workers/L_accum)
-                else:
-                    if not self.allow_none_type_gradients:
-                        p_names = search_name_of_parameter(self.model, p)
-                        raise RuntimeError(f'Detected NoneType gradient! Name {p_names}, Shape {p.shape}, {p}')
-
-        with ContextTimer('optimizer_step'):
-            if self.is_mpt():
-                self.scaler.step(self.optimizer)
-                self.scaler.update() 
             else:
-                self.optimizer.step()
-            self.lr_scheduler.step()
-            self.optimizer.zero_grad(set_to_none=True)
+                if not self.allow_none_type_gradients:
+                    p_names = search_name_of_parameter(self.model, p)
+                    raise RuntimeError(f'Detected NoneType gradient! Name {p_names}, Shape {p.shape}, {p}')
+
+        for opt in self.optimizers: opt.step()
+        for scheduler in self.lr_schedulers: scheduler.step()
     
     def train_ministep(self, data):
         
-        with ContextTimer('send_to_gpu'):
-            data['tensors'] = data['tensors'].to(Settings.get_device())
+        for key, tensor in data['tensors'].items():
+            data['tensors'][key] = tensor.to(Settings.get_device())
 
-        with autocast(
-            device_type='cuda', dtype=torch.float16
-        ) if self.is_mpt() else nullcontext():
+        output, add_tensors = self.model(*[data['tensors'][k] for k in self.model_input_keys])
 
-            with ContextTimer('model'):
-                output, _ = self.model(*[data['tensors'].get(k) for k in self.model_input_keys])
+        data['tensors'].update(add_tensors)
 
-            with ContextTimer('criterion'):
-                criterion, L = self.criterion(output, *[data['tensors'].get(k) for k in self.criterion.input_keys])
+        loss, L = self.criterions[0](
+            output, 
+            *([data['tensors'][k] for k in self.criterions[0].input_keys])
+        )
 
-        with ContextTimer('backpropagation'):
-            if self.is_mpt():
-                self.scaler.scale(criterion).backward()
-            else:
-                criterion.backward()
+        for criterion in self.criterions[1:]:
+            loss_cur, _ = criterion(output, *[data['tensors'][k] for k in criterion.input_keys])
+            loss += loss_cur
 
-        with ContextTimer('scores'):
-            with torch.no_grad():
-                for score in self.scores:
-                    score(output, *[data['tensors'][k] for k in score.input_keys])
+        loss.backward()
 
-        with ContextTimer('setting_seeds'):
-            if self.deterministic:
-                Settings.increase_global_seed()
-                torch.manual_seed(Settings.get_global_seed())
+        with torch.no_grad():
+            for score in self.scores:
+                score(output, *[data['tensors'][k] for k in score.input_keys])
 
-        L = L.detach()
+        if isinstance(L, torch.Tensor):
+            L = L.detach()
 
         return L
 
     def eval_step(self, data):
         
-        data['tensors'] = data['tensors'].to(Settings.get_device())
+        for key, tensor in data['tensors'].items():
+            data['tensors'][key] = tensor.to(Settings.get_device())
 
-        with torch.no_grad(), autocast(
-            device_type='cuda', dtype=torch.float16
-        ) if self.is_mpt() else nullcontext():
-            output, _ = self.model(*[data['tensors'].get(k) for k in self.model_input_keys])
-            self.criterion(output, *[data['tensors'].get(k) for k in self.criterion.input_keys])
+        with torch.no_grad():
+            output, add_tensors = self.model(*[data['tensors'].get(k) for k in self.model_input_keys])
+            data['tensors'].update(add_tensors)
+            for criterion in self.criterions:
+                criterion(output, *[data['tensors'].get(k) for k in criterion.input_keys])
             for score in self.scores:
                 score(output, *[data['tensors'].get(k) for k in score.input_keys])
 
@@ -251,15 +219,17 @@ class Trainer:
     def create_score_summary_dict(self):
 
         score_summary = {}
-        criterion_values = self.criterion.get_average_accumulator_values()
-        score_summary.update(criterion_values)
+        for criterion in self.criterions:
+            criterion_values = criterion.get_reduced_accumulator_values()
+            score_summary.update(criterion_values)
 
         for score in self.scores:
-            score_summary.update(score.get_average_accumulator_values())
+            score_summary.update(score.get_reduced_accumulator_values())
 
         return score_summary
 
     def reset_accumulators(self):
-        self.criterion.reset_accumulators()
+        for criterion in self.criterions:
+            criterion.reset_accumulators()
         for score in self.scores:
             score.reset_accumulators()

@@ -110,8 +110,11 @@ class CheckpointManager:
         self.checkpoint_duration_accum = checkpoint['checkpoint_duration_accum']
 
         if Settings.is_training():
-            Context['optimizers'].load_state_dict(checkpoint['optimizers'])
-            Context['lr_schedulers'].load_state_dict(checkpoint['lr_schedulers'])
+            for i, optimizer in enumerate(Context['optimizers']):
+                optimizer.load_state_dict(checkpoint[f'optimizer{i:02d}'])
+
+            for i, lr_scheduler in enumerate(Context['lr_schedulers']):
+                lr_scheduler.load_state_dict(checkpoint[f'lr_scheduler{i:02d}'])
 
 
     def save(self, score_summary):
@@ -155,17 +158,23 @@ class CheckpointManager:
         if isinstance(model, DDP):
             model = model.module
 
-        torch.save({
+        to_save = {
             'model': model.state_dict(),
-            'optimizers': Context['optimizers'].state_dict(),
-            'lr_schedulers': Context['lr_schedulers'].state_dict(),
             'best_score': self.best_score,
             'ckpts_since_best': self.ckpts_since_best,
             'step_count': self.step_count,
             'epoch_count': self.epoch_count,
             'checkpoint_count': self.checkpoint_count,
             'checkpoint_duration_accum': self.checkpoint_duration_accum
-        }, path)
+        }
+        
+        for i, optimizer in enumerate(Context['optimizers']):
+            to_save[f'optimizer{i:02d}'] = optimizer.state_dict()
+
+        for i, lr_scheduler in enumerate(Context['lr_schedulers']):
+            to_save[f'lr_scheduler{i:02d}'] = lr_scheduler.state_dict()
+
+        torch.save(to_save, path)
 
 
     def keep_going(self):

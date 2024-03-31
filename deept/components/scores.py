@@ -23,9 +23,10 @@ def register_score(name):
 def create_score_from_config(score_config, config):
     score_type = score_config['score_type']
     input_keys = score_config['input_keys']
+    reduce_type = score_config['reduce_type', 'avg']
     if score_type in __SCORES__:
         from deept.util.debug import my_print
-        score = __SCORES__[score_type].create_from_config(config, input_keys)
+        score = __SCORES__[score_type].create_from_config(config, input_keys, reduce_type)
         check_score(score)
         return score
     else:
@@ -52,16 +53,50 @@ class ScoreAccummulator:
 
         self.L = torch.tensor([0.], requires_grad=False, device=Settings.get_device())
         self.value = torch.tensor([0.], requires_grad=False, device=Settings.get_device())
+        self.count = 0
         self.name = name
-        self.last_averaged_value = 0.
+        self.last_reduced_value = 0.
 
     def increase(self, value, L):
+        if isinstance(L, torch.Tensor):
+            L = L.detach()
+        if isinstance(value, torch.Tensor):
+            value = value.detach()
         with torch.no_grad():
-            self.L += L.detach()
-            self.value += value.detach()
+            self.L += L
+            self.value += value
+            self.count += 1
 
     def average(self):
 
+        value, L = self.__maybe_distribute_and_to_float_all()
+
+        self.last_reduced_value = (value / L)
+
+        return self.last_reduced_value
+
+    def average_over_counts(self):
+
+        value, L = self.__maybe_distribute_and_to_float_all()
+
+        self.last_reduced_value = (value / self.count)
+
+        return self.last_reduced_value
+
+    def sum(self):
+
+        value, L = self.__maybe_distribute_and_to_float_all()
+
+        self.last_reduced_value = value
+
+        return self.last_reduced_value
+
+    def reset(self):
+        self.L[0] = 0.
+        self.value[0] = 0.
+        self.count = 0
+
+    def __maybe_distribute_and_to_float_all(self):
         if isinstance(self.L, torch.Tensor):
             L = self.__maybe_distribute_and_to_float(self.L)
         else:
@@ -76,13 +111,7 @@ class ScoreAccummulator:
             If you have registered accumulators in your score (something you need to do),
             you need to increase it within the __call__ of your score."""
 
-        self.last_averaged_value = (value / L)
-
-        return self.last_averaged_value
-
-    def reset(self):
-        self.L[0] = 0.
-        self.value[0] = 0.
+        return value, L
 
     def __maybe_distribute_and_to_float(self, tensor):
         if Settings.get_number_of_workers() > 1:
@@ -92,8 +121,11 @@ class ScoreAccummulator:
 
 class Score(nn.Module):
 
-    def __init__(self):
+    def __init__(self, input_keys, reduce_type):
         super().__init__()
+
+        self.input_keys = input_keys
+        self.reduce_type = reduce_type
 
         self.sub_scores = [] # Other Score objects
         self.accumulators = []
@@ -104,18 +136,28 @@ class Score(nn.Module):
     def register_subscore(self, score):
         self.sub_scores.append(score)
 
-    def get_average_accumulator_values(self):
+    def get_reduced_accumulator_values(self):
 
         values = {}
 
         for sub_score in self.sub_scores:
-            sub_score_values = sub_score.average()
+            sub_score_values = self.reduce_score(sub_score)
             values.update(sub_score_values)
 
         for accumulator in self.accumulators:
-            values[accumulator.name] = accumulator.average()
+            values[accumulator.name] = self.reduce_score(accumulator)
 
         return values
+    
+    def reduce_score(self, score):
+        if self.reduce_type == 'avg':
+            return score.average()
+        elif self.reduce_type == 'avg_counts':
+            return score.average_over_counts()
+        elif self.reduce_type == 'sum':
+            return score.sum()
+        else:
+            raise ValueError(f'Did not recognize score reduce type {self.reduce_type} of {self}!')
 
     def reset_accumulators(self):
         for accumulator in self.accumulators:
@@ -125,14 +167,13 @@ class Score(nn.Module):
 @register_score('CrossEntropy')
 class CrossEntropy(Score):
 
-    def __init__(self, input_keys,
+    def __init__(self,
+        input_keys, reduce_type,
         pad_index=None,
         calculate_ppl=True,
         label_smoothing=0.0
     ):
-        super().__init__()
-
-        self.input_keys = input_keys
+        super().__init__(input_keys, reduce_type)
 
         self.pad_index = pad_index
         self.calculate_ppl = calculate_ppl
@@ -143,13 +184,13 @@ class CrossEntropy(Score):
 
         self.loss_fn = nn.CrossEntropyLoss(
             ignore_index=ignore_index,
-            label_smoothing=0.0
+            label_smoothing=label_smoothing
         )
 
         self.register_accumulator('ce')
 
     @staticmethod
-    def create_from_config(config, input_keys):
+    def create_from_config(config, input_keys, reduce_type):
 
         from deept.util.globals import Context
 
@@ -159,20 +200,28 @@ class CrossEntropy(Score):
             pad_index = None
         
         return CrossEntropy(
-            input_keys,
+            input_keys, reduce_type,
             pad_index = pad_index,
             calculate_ppl = config['ce_calculate_ppl', True],
             label_smoothing = config['ce_label_smoothing', 0.0],
         )
 
     def __call__(self, output, targets):
+        
         ce = self.loss_fn(output, targets)
+
+        if self.pad_index is None:
+            numel = targets.numel()
+        else:
+            numel = (output != self.pad_index).sum()
+
         self.accumulators[0].increase(ce, numel)
+
         return ce, numel
 
-    def get_average_accumulator_values(self):
+    def get_reduced_accumulator_values(self):
         """Overwrite the get_average_accumulator_values function to also calculate ppl."""
-        scores = super(CrossEntropy, self).get_average_accumulator_values()
+        scores = super(CrossEntropy, self).get_reduced_accumulator_values()
         if self.calculate_ppl:
             scores['ppl'] = self.__calculate_ppl(scores['ce'])
         return scores
@@ -184,32 +233,3 @@ class CrossEntropy(Score):
         except OverflowError: 
             ppl = float('inf')
         return ppl
-
-
-@register_score('Accuracy')
-class Accuracy(Score):
-
-    def __init__(self, input_keys, pad_index=None):
-        super().__init__()
-        self.input_keys = input_keys
-        self.pad_index = pad_index
-        self.register_accumulator('acc')
-
-    @staticmethod
-    def create_from_config(config, input_keys):
-
-        from deept.util.globals import Context
-
-        if Context.has_context('pad_index'):
-            pad_index = Context['pad_index']
-        else:
-            pad_index = None
-
-        return Accuracy(
-            input_keys,
-            pad_index=pad_index
-        )
-
-    def __call__(self, output, targets):
-
-        return 1., 10
