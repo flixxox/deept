@@ -3,13 +3,7 @@ from enum import Enum
 from typing import Union
 from dataclasses import dataclass
 
-import deept.model.model as dt_model
 from deept.util.debug import my_print
-import deept.model.scores as dt_scores
-import deept.data.datapipe as dt_datapipe
-import deept.data.dataloader as dt_dataloader
-import deept.search.search_algorithm as dt_search
-import deept.data.postprocessing as dt_postprocess
 
 
 class CommonAcceptedInputs(str, Enum):
@@ -72,80 +66,33 @@ class DeepTConfigDescription:
     @staticmethod
     def create_deept_config_description_data():
 
+        import deept.data.dataset as dt_dataset
+        import deept.data.dataloader as dt_dataloader
+        import deept.data.postprocessing as dt_postprocess
+
         __CONFIG_DESC__ = DeepTConfigDescription.__CONFIG_DESC__
 
-        __CONFIG_DESC__['data']['data_train_root'] = ConfigSpec(
-            description = """The directory of the train webdataset tar files.""",
-            required = False,
-            accepted_values = CommonAcceptedInputs.FILEPATH
-        )
-
-        __CONFIG_DESC__['data']['data_train_mask'] = ConfigSpec(
-            description = """A mask that selects files within the 'data_train_root' directory as used for training.
-                Make sure that it specifies .tar files.""",
-            required = False,
-            accepted_values = 'For example: "*.tar", "train*.tar", "train.tar".'
-        )
-
-        __CONFIG_DESC__['data']['data_dev_root'] = ConfigSpec(
-            description = """The directory of the dev webdataset tar files.""",
-            required = False,
-            accepted_values = CommonAcceptedInputs.FILEPATH
-        )
-
-        __CONFIG_DESC__['data']['data_dev_mask'] = ConfigSpec(
-            description = """A mask that selects files within the 'data_dev_root' directory as used for evaluation.
-                Make sure that it specifies .tar files.""",
-            required = False,
-            accepted_values = 'For example: "*.tar", "dev*.tar", "dev.tar".'
-        )
-
-        __CONFIG_DESC__['data']['data_decoding'] = ConfigSpec(
-            description = """Here you can specify the datapipe that decodes the binary and uncompressed datastream from the webdataset.
-                You can register your own decoding datapipe with '@register_dp_decoding(YOUR_KEY)'.""",
-            required = False,
-            accepted_values = dt_datapipe.get_all_dp_decoding_keys()
-        )
-
-        __CONFIG_DESC__['data']['data_preprocess'] = ConfigSpec(
-            description = """Here you specify the key of the preprocessing data pipeline. It takes as input the raw data (already decoded) and
-                can perform some arbitrary preprocessing. For example, in machine translation this refers to appending special symbols and tokenizing.
-                Note that the returned items should not be padded or coverted to tensors yet.
-                With '@register_dp_preprocessing(YOUR_KEY)' you can register your own preprocessing pipeline.""",
-            required = False,
-            accepted_values = dt_datapipe.get_all_dp_preprocessing_keys()
-        )
-
-        __CONFIG_DESC__['data']['data_collate'] = ConfigSpec(
-            description = """Here you specify the data collating  pipeline. It takes as input the batched but not padded nor tensorized items as lists.
-                It should map each list to the corresponding tensor.""",
-            required = False,
-            accepted_values = dt_datapipe.get_all_dp_collate_keys()
-        )
-
-        __CONFIG_DESC__['data']['data_len_fn'] = ConfigSpec(
-            description = """With this parameter you specify the size of one data sample used for batching. 
-                The len_fn takes as input one data sample and returns an integer that represents the size of that sample.
-                Whatever you return here will be the quantity of 'batch_size'.
-                You can register your own length function with '@register_len_fn(YOUR_KEY)'.""",
-            required = False,
-            accepted_values = dt_datapipe.get_all_len_fn_keys()
-        )
-
-        __CONFIG_DESC__['data']['data_dp_overwrite'] = ConfigSpec(
-            description = """Normally we use a generic webdataset datapipe and insert user-specific datapipes along the way.
-                If you want to only use your own datapipe register it with "@register_dp_overwrite(YOUR_NAME)" and implement the static function
-                create_from_config(config). 'data_dp_overwrite' refers to the datapipe key, i.e. 'YOUR_NAME'.
-                If 'data_dp_overwrite' is not specified, you must specify the parameters: "data_decoding", "data_preprocess" and "data_collate".""",
-            required = False,
-            accepted_values = dt_datapipe.get_all_dp_overwrite_keys()
-        )
-
         __CONFIG_DESC__['data']['dataloader'] = ConfigSpec(
-            description = """Here you can specify the key of your own dataloader that you need to register with @register_dataloader(YOUR_NAME).
-                It is expected to have a static member function create_from_config(config, datapipe).""",
-            required = False,
+            description = (f'Here you need to specify the key of your own dataloader'
+                f'that you need to register with @register_dataloader(YOUR_NAME). '
+                f'It is expected to have a static member function create_from_config(config, dataset, shuffle, is_train, num_workers). '
+                f'that returns an object of type torch.utils.data.Dataloader.'),
+            required = True,
             accepted_values = dt_dataloader.get_all_dataloader_keys()
+        )
+
+        __CONFIG_DESC__['data']['train_dataset'] = ConfigSpec(
+            description = """Here you need to specify the key of your own dataset
+            that you need to register with @register_dataset(YOUR_NAME).""",
+            required = True,
+            accepted_values = dt_dataset.get_all_dataset_keys()
+        )
+
+        __CONFIG_DESC__['data']['dev_dataset'] = ConfigSpec(
+            description = """Here you need to specify the key of your own dataset
+            that you need to register with @register_dataset(YOUR_NAME).""",
+            required = True,
+            accepted_values = dt_dataset.get_all_dataset_keys()
         )
 
         __CONFIG_DESC__['data']['batch_size'] = ConfigSpec(
@@ -177,23 +124,6 @@ class DeepTConfigDescription:
             accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
         )
 
-        __CONFIG_DESC__['data']['buffer_size_bucketing'] = ConfigSpec(
-            description = """The bucketizer buffers these many samples. Within this buffer the sentences are sorted.
-            To control variability of batches keep the buffer size sufficiently small. Default=1000.
-            It allows to control the tradeoff between sorting and randomness. If the buffer size is small batches will be
-            more random. If the buffer size is large batches are well sorted. 
-            See: https://pytorch.org/data/main/generated/torchdata.datapipes.iter.MaxTokenBucketizer.html""",
-            required = False,
-            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
-        )
-
-        __CONFIG_DESC__['data']['buffer_size_batch_shuffling'] = ConfigSpec(
-            description = """The buffer size of the last shuffling operation. These many batches will be buffered and shuffled.
-            Note that all those batches need to be buffered in RAM for each worker.""",
-            required = False,
-            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
-        )
-
         __CONFIG_DESC__['data']['buffer_sort_search'] = ConfigSpec(
             description = """Those many batches are buffered and sorted in search. 
                 A higher value leads to better sorting but more RAM usage.""",
@@ -220,28 +150,26 @@ class DeepTConfigDescription:
             accepted_values = dt_postprocess.get_all_postprocessing_keys()
         )
 
-        __CONFIG_DESC__['data']['corpus_size_dev'] = ConfigSpec(
-            description = """This is needed for search.
-                DeepT needs to know how many samples are within the corpus to write search results in order to a file.
-                The reason DeepT cannot determine it, is because a filter might be applied by the user before DeepT has 
-                a chance to see the data.""",
-            required = True,
-            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
-        )
-
-        __CONFIG_DESC__['data']['corpus_size_test'] = ConfigSpec(
-            description = """Analog to 'corpus_size_dev'.""",
-            required = True,
-            accepted_values = CommonAcceptedInputs.NONE_NEGATIVE_INT
-        )
-
     @staticmethod
     def create_deept_config_description_model():
 
+        import deept.components.model as dt_model
+        import deept.components.scores as dt_scores
+        import deept.components.optimizer as dt_optim
+        import deept.components.lr_scheduler as dt_lrschedule
+
         __CONFIG_DESC__ = DeepTConfigDescription.__CONFIG_DESC__
 
-        __CONFIG_DESC__['model']['criterion'] = ConfigSpec(
-            description = """The key of the score that is used as the criterion.""",
+        __CONFIG_DESC__['model']['criterions'] = ConfigSpec(
+            description = (
+                f'A list of criterions. A criterion is a dictionary with '
+                f'two keys "score_type" and "input_keys".'
+            ),
+            required = True
+        )
+
+        __CONFIG_DESC__['model']['score_type'] = ConfigSpec(
+            description = (f'The score identifier as specified in @register_score(score_id).'),
             required = True,
             accepted_values = dt_scores.get_all_score_keys()
         )
@@ -252,12 +180,31 @@ class DeepTConfigDescription:
             accepted_values = dt_model.get_all_model_keys()
         )
 
+        __CONFIG_DESC__['model']['optimizers'] = ConfigSpec(
+            description = """TODO.""",
+            required = True
+        )
+        
+        __CONFIG_DESC__['model']['optim_type'] = ConfigSpec(
+            description = """The key of an optimizer as supplied by @register_optimizer(id).""",
+            required = True,
+            accepted_values = dt_optim.get_all_optimizer_keys()
+        )
+
+        __CONFIG_DESC__['model']['lr_type'] = ConfigSpec(
+            description = """The key of an lr_scheduler as supplied by @register_lr_scheduler(id).""",
+            required = True,
+            accepted_values = dt_lrschedule.get_all_lr_scheduler_keys()
+        )
+
     @staticmethod
     def create_deept_config_description_checkpointing():
         pass
 
     @staticmethod
     def create_deept_config_description_search():
+
+        import deept.search.search_algorithm as dt_search
 
         __CONFIG_DESC__ = DeepTConfigDescription.__CONFIG_DESC__
 
@@ -341,33 +288,75 @@ class Config:
             my_print(key.ljust(max_key_length, '-'), str(self.config[key]).ljust(100, '-'))
 
     def assert_has_key(self, key):
-        
         if not self.has_key(key):
             error_msg = f'Config is missing key "{key}".'
             if DeepTConfigDescription.has_key(key):
-                error_msg += f'\nDescription: {DeepTConfigDescription[key].description}'
+                error_msg += (f'\nDescription: {DeepTConfigDescription[key].description}.')
             raise ValueError(error_msg)
-
+     
     def has_key(self, key):
         return key in self.config.keys()
 
     def __getitem__(self, key):
-
         if isinstance(key, tuple):
-            
             assert len(key) == 2
-
             default = key[1]
             key = key[0]
-
-            if self.has_key(key):    
-                return self.config[key]
-            else:
-                return default
-
+            return self.__get_item_with_default(key, default)
         else:
-            self.assert_has_key(key)
-            return self.config[key]
+            return self.__get_item(key)
+    
+    def __get_item(self, key):
+        self.assert_has_key(key)
+        item = self.__parse_item(self.config[key])
+        self.assert_check_item(key, item)
+        return item
+
+    def __get_item_with_default(self, key, default):
+        if self.has_key(key):    
+            item = self.__parse_item(self.config[key])
+            self.assert_check_item(key, item)
+            return item
+        else:
+            return self.__parse_item(default)
+
+    def __parse_item(self, item):
+        if isinstance(item, dict):
+            return Config(item)
+        else:
+            return item
+
+    def assert_check_item(self, key, item):
+        if not DeepTConfigDescription.has_key(key):
+            return
+
+        if (not isinstance(item, str) 
+            and not isinstance(item, int)
+            and not isinstance(item, float)
+            and not isinstance(item, bool)
+        ):
+            return
+        
+        if  (DeepTConfigDescription[key].accepted_values is None or
+            not isinstance(DeepTConfigDescription[key].accepted_values, list)):
+            return
+
+        if not item in DeepTConfigDescription[key].accepted_values:
+            error_msg = f'Config has invalid input for "{key}".'
+            error_msg += (f'\nDescription: {DeepTConfigDescription[key].description}.'
+                f'\n Accepted Values: {DeepTConfigDescription[key].accepted_values}'
+                f'\n Got: {item}')
+            raise ValueError(error_msg)
 
     def __setitem__(self, key, value):
         self.config[key] = value
+    
+    def update(self, dict, prefix=''):
+        for k, v in dict.items():
+            self.config[f'{prefix}{k}'] = v
+
+    def items(self):
+        return self.config.items()
+
+    def keys(self):
+        return self.config.keys()

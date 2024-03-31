@@ -8,7 +8,7 @@ import torch.distributed as dist
 
 from deept.util.timer import ContextTimer
 from deept.util.globals import Settings, Context
-from deept.model.scores import write_scores_dict_to_files
+from deept.components.scores import write_scores_dict_to_files
 from deept.util.debug import (
     my_print,
     print_summary,
@@ -27,9 +27,9 @@ class Trainer:
             setattr(self, k, v)
 
         self.model = Context['model']
-        self.criterion = Context['criterion']
-        self.optimizer = Context['optimizer']
-        self.lr_scheduler = Context['lr_scheduler']
+        self.criterions = Context['criterions']
+        self.optimizers = Context['optimizers']
+        self.lr_schedulers = Context['lr_schedulers']
         self.scores = Context['scores']
 
         if Trainer.is_ddp():

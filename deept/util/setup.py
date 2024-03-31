@@ -1,5 +1,6 @@
 
 import torch
+import numpy as np
 
 from deept.util.debug import my_print
 from deept.util.globals import Settings
@@ -39,6 +40,7 @@ def setup(config, rank, world_size,
         setup_cuda(config)
     if config['number_of_gpus'] > 1:
         setup_ddp(config)
+    setup_seeds(config)
 
 def import_user_code(paths_to_user_code):
 
@@ -144,9 +146,7 @@ def setup_torch(config):
         torch.use_deterministic_algorithms(True)
 
     if not Settings.is_training() and config['quantize_post_training', False]:
-
         backend = config['quantize_backend', 'x86']
-
         if backend == 'x86':
             my_print('Using quantization backend x86!')
             torch.backends.quantized.engine = 'x86'
@@ -156,8 +156,15 @@ def setup_torch(config):
         else:
             raise ValueError(f'Unrecognized quantization backend: {backend}! Accepted values ["x86", "qnnpack"].')
 
+    if config['torch_disable_detect_anomaly', False]:
+        torch.autograd.set_detect_anomaly(False)
+
+    torch.set_printoptions(precision=4, sci_mode=False)
+
 def setup_cuda(config):
     torch.cuda.set_device(Settings.get_device())
+    if config['deterministic', False]:
+        torch.backends.cudnn.deterministic = True
 
 def setup_ddp(config):
 
@@ -173,3 +180,10 @@ def setup_ddp(config):
         rank=Settings.rank(),
         world_size=Settings.get_number_of_workers()
     ) # Uses nccl for gpu and gloo for cpu communication
+
+def setup_seeds(config):
+    np.random.seed(Settings.get_global_seed())
+    torch.manual_seed(Settings.get_global_seed())
+    if Settings.is_gpu():
+        torch.cuda.manual_seed(Settings.get_global_seed())
+        torch.cuda.manual_seed_all(Settings.get_global_seed())

@@ -6,8 +6,7 @@ import torch.nn as nn
 import torch.distributed as dist
 
 from deept.util.globals import Settings
-from deept.util.debug import write_number_to_file
-
+from deept.util.debug import my_print, write_number_to_file
 
 __SCORES__ = {}
 
@@ -21,14 +20,16 @@ def register_score(name):
 
     return register_score_fn
 
-def create_score_from_config(key, config):
-    if key in __SCORES__:
+def create_score_from_config(score_config, config):
+    score_type = score_config['score_type']
+    input_keys = score_config['input_keys']
+    if score_type in __SCORES__:
         from deept.util.debug import my_print
-        score = __SCORES__[key].create_from_config(config)
+        score = __SCORES__[score_type].create_from_config(config, input_keys)
         check_score(score)
         return score
     else:
-        raise ValueError(f'Error! Unrecognized score {key}!')
+        raise ValueError(f'Error! Unrecognized score {score_type}!')
 
 def check_score(score):
 
@@ -55,10 +56,9 @@ class ScoreAccummulator:
         self.last_averaged_value = 0.
 
     def increase(self, value, L):
-
         with torch.no_grad():
-            self.L += L
-            self.value += value
+            self.L += L.detach()
+            self.value += value.detach()
 
     def average(self):
 
@@ -127,7 +127,8 @@ class CrossEntropy(Score):
 
     def __init__(self, input_keys,
         pad_index=None,
-        calculate_ppl=True
+        calculate_ppl=True,
+        label_smoothing=0.0
     ):
         super().__init__()
 
@@ -135,126 +136,45 @@ class CrossEntropy(Score):
 
         self.pad_index = pad_index
         self.calculate_ppl = calculate_ppl
+        self.label_smoothing = label_smoothing
+
+        if pad_index is None:
+            ignore_index = -100
+
+        self.loss_fn = nn.CrossEntropyLoss(
+            ignore_index=ignore_index,
+            label_smoothing=0.0
+        )
 
         self.register_accumulator('ce')
 
     @staticmethod
-    def create_from_config(config):
+    def create_from_config(config, input_keys):
 
         from deept.util.globals import Context
 
         if Context.has_context('pad_index'):
             pad_index = Context['pad_index']
         else:
-            my_print(f"""Info: "pad_index" has not been set in Context.
-                CrossEntropy does not exclude padding symbols.""")
             pad_index = None
         
         return CrossEntropy(
-            config['cross_entropy_input', ['out']],
+            input_keys,
             pad_index = pad_index,
-            calculate_ppl = config['ce_calculate_ppl', True]
+            calculate_ppl = config['ce_calculate_ppl', True],
+            label_smoothing = config['ce_label_smoothing', 0.0],
         )
 
-    def __call__(self, output, out):
-
-        out = out.reshape(-1, 1)
-        output = output.reshape(-1, output.shape[-1])
-
-        out_mask = (out != self.pad_index)
-
-        ce = -1 * output.gather(dim=-1, index=out)
-        ce = ce * out_mask
-
-        num_words = out_mask.sum()
-        ce = ce.sum()
-
-        self.accumulators[0].increase(ce, num_words)
-
-        return ce, num_words
+    def __call__(self, output, targets):
+        ce = self.loss_fn(output, targets)
+        self.accumulators[0].increase(ce, numel)
+        return ce, numel
 
     def get_average_accumulator_values(self):
-        """We overwrite the get_average_accumulator_values function to also calculate ppl."""
+        """Overwrite the get_average_accumulator_values function to also calculate ppl."""
         scores = super(CrossEntropy, self).get_average_accumulator_values()
         if self.calculate_ppl:
             scores['ppl'] = self.__calculate_ppl(scores['ce'])
-        return scores
-
-    def __calculate_ppl(self, ce):
-        import math
-        try: 
-            ppl = math.exp(ce)
-        except OverflowError: 
-            ppl = float('inf')
-        return ppl
-
-
-@register_score('LabelSmoothingCrossEntropy')
-class LabelSmoothingCrossEntropyLoss(Score):
-
-    def __init__(self, input_keys, m,
-        pad_index=None, 
-        calculate_ppl=True
-    ):
-        super().__init__()
-
-        self.m = m
-        self.input_keys = input_keys
-
-        self.pad_index = pad_index
-        self.calculate_ppl = calculate_ppl
-
-        self.register_accumulator('ce_smooth')
-
-    @staticmethod
-    def create_from_config(config):
-
-        from deept.util.globals import Context
-
-        if Context.has_context('pad_index'):
-            pad_index = Context['pad_index']
-        else:
-            my_print(f"""Info: "pad_index" has not been set in Context.
-                LabelSmoothingCrossEntropyLoss does not exclude padding symbols.""")
-            pad_index = None
-
-        return LabelSmoothingCrossEntropyLoss(
-            config['ls_cross_entropy_input', ['out']],
-            config['label_smoothing', 0.1],
-            pad_index=pad_index,
-            calculate_ppl = config['ce_smooth_calculate_ppl', True]
-        )
-
-    def __call__(self, output, out):
-
-        tgtV = output.shape[-1]
-
-        out = out.reshape(-1, 1)
-        output = output.reshape(-1, tgtV)
-
-        out_mask = (out != self.pad_index)
-        
-        m = self.m
-        w = m / (tgtV - 1)
-
-        nll_loss = -1 * output.gather(dim=-1, index=out)
-        smo_loss = -1 * output.sum(-1, keepdim=True)
-        
-        ce_smooth = (1 - m - w) * nll_loss + w * smo_loss
-        ce_smooth = ce_smooth * out_mask
-
-        L = out_mask.sum()
-        ce_smooth = ce_smooth.sum()
-
-        self.accumulators[0].increase(ce_smooth, L)
-
-        return ce_smooth, L
-
-    def get_average_accumulator_values(self):
-        """We overwrite the get_average_accumulator_values function to also calculate ppl."""
-        scores = super(LabelSmoothingCrossEntropyLoss, self).get_average_accumulator_values()
-        if self.calculate_ppl:
-            scores['ppl_smooth'] = self.__calculate_ppl(scores['ce_smooth'])
         return scores
 
     def __calculate_ppl(self, ce):
@@ -271,30 +191,25 @@ class Accuracy(Score):
 
     def __init__(self, input_keys, pad_index=None):
         super().__init__()
-
         self.input_keys = input_keys
-
         self.pad_index = pad_index
-
-        self.register_accumulator('accuracy')
+        self.register_accumulator('acc')
 
     @staticmethod
-    def create_from_config(config):
+    def create_from_config(config, input_keys):
 
         from deept.util.globals import Context
 
         if Context.has_context('pad_index'):
             pad_index = Context['pad_index']
         else:
-            my_print(f"""Info: "pad_index" has not been set in Context.
-                LabelSmoothingCrossEntropyLoss does not exclude padding symbols.""")
             pad_index = None
 
         return Accuracy(
-            config['accuracy_input', ['out']],
+            input_keys,
             pad_index=pad_index
         )
 
-    def __call__(self, output, out):
+    def __call__(self, output, targets):
 
         return 1., 10

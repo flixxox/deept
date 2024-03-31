@@ -110,9 +110,8 @@ class CheckpointManager:
         self.checkpoint_duration_accum = checkpoint['checkpoint_duration_accum']
 
         if Settings.is_training():
-            Context['optimizer'].load_state_dict(checkpoint['optimizer'])
-        if Settings.is_training():
-            Context['lr_scheduler'].load_state_dict(checkpoint['lr_scheduler'])
+            Context['optimizers'].load_state_dict(checkpoint['optimizers'])
+            Context['lr_schedulers'].load_state_dict(checkpoint['lr_schedulers'])
 
 
     def save(self, score_summary):
@@ -158,8 +157,8 @@ class CheckpointManager:
 
         torch.save({
             'model': model.state_dict(),
-            'optimizer': Context['optimizer'].state_dict(),
-            'lr_scheduler': Context['lr_scheduler'].state_dict(),
+            'optimizers': Context['optimizers'].state_dict(),
+            'lr_schedulers': Context['lr_schedulers'].state_dict(),
             'best_score': self.best_score,
             'ckpts_since_best': self.ckpts_since_best,
             'step_count': self.step_count,

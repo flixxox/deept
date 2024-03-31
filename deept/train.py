@@ -33,10 +33,15 @@ def parse_cli_arguments():
         help='If you want to resume a training, specify the output directory here. We expect it to have the same layout as a newly created one.')
     parser.add_argument('--number-of-gpus', type=int, required=False, default=None,
         help='This is usually specified in the config but can also be overwritten from the cli.')
+    parser.add_argument('--experiment-name', type=str, required=False, default='deept-training',
+        help='The name of the experiment this training runs in.')
+    parser.add_argument('--use-wandb', type=int, required=False, default=False,
+        help='Wheterh the training shall be logged with wandb.')
 
     args = parser.parse_args()
 
     args.resume_training = bool(args.resume_training)
+    args.use_wandb = bool(args.use_wandb)
 
     return vars(args)
 
@@ -63,32 +68,29 @@ def train(rank, config, world_size):
 
     setup(config, rank, world_size, train=True, time=False)
 
-    config['update_freq'] = config['update_freq'] // Settings.get_number_of_workers()
+    config['update_freq'] = config['update_freq', 1] // Settings.get_number_of_workers()
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')
-
-    torch.manual_seed(Settings.get_global_seed())
 
     train_dataloader, dev_dataloader = create_dataloader(config)
     
     model = create_model(config)
     Context.add_context('model', model)
 
-    criterion = create_criterion(config)
-    Context.add_context('criterion', criterion)
+    criterions = create_scores(config, 'criterions')
+    Context.add_context('criterions', criterions)
 
-    scores = create_scores(config)
+    scores = create_scores(config, 'scores')
     Context.add_context('scores', scores)
 
-    optimizer = create_optimizer(config)
-    Context.add_context('optimizer', optimizer)
-
-    lr_scheduler = create_lr_scheduler(config)
-    Context.add_context('lr_scheduler', lr_scheduler)
+    optimizers, lr_schedulers = create_optimizers_and_lr_schedulers(config)
+    Context.add_context('optimizers', optimizers)
+    Context.add_context('lr_schedulers', lr_schedulers)
 
     checkpoint_manager = create_checkpoint_manager(config)
 
     if config['model_uses_qat', False]:
-        from deept.model.quantization import prepare_model_for_qat
+        from deept.components.quantization import prepare_model_for_qat
+        my_print('Warning! Quantization is experimental!')
         Context.overwrite('model', prepare_model_for_qat(config, Context['model']))
 
     # == No user modifications allowed anymore
@@ -129,86 +131,50 @@ def train(rank, config, world_size):
     my_print('Done!')
 
 def create_dataloader(config):
-
-    from deept.data.datapipe import create_dp_from_config
+    from deept.data.dataset import create_dataset_from_config
     from deept.data.dataloader import create_dataloader_from_config
 
-    train_datapipe = create_dp_from_config(config, 
-        config['data_train_root'],
-        config['data_train_mask'],
-        name='train',
-        chunk=True,
-        drop_last=True,
-        use_max_token_bucketize=True
+    train_dataset = create_dataset_from_config(config, True, 'train_dataset')
+    dev_dataset = create_dataset_from_config(config, False, 'dev_dataset')
+
+    train_dataloader = create_dataloader_from_config(config, train_dataset, 
+        is_train=True
     )
 
-    dev_datapipe = create_dp_from_config(config,
-        config['data_dev_root'],
-        config['data_dev_mask'],
-        name='dev',
-        chunk=False,
-        drop_last=False,
-        use_max_token_bucketize=True
-    )
-
-    train_dataloader = create_dataloader_from_config(config, train_datapipe, 
-        shuffle=True
-    )
-
-    dev_dataloader = create_dataloader_from_config(config, dev_datapipe,
-        shuffle=False
+    dev_dataloader = create_dataloader_from_config(config, dev_dataset, 
+        is_train=False
     )
 
     return train_dataloader, dev_dataloader
 
 def create_model(config):
-    from deept.model.model import create_model_from_config
+    from deept.components.model import create_model_from_config
     model = create_model_from_config(config)
     return model
 
-def create_optimizer(config):
-
-    from deept.util.globals import Context
-    from deept.model.optimizer import create_optimizer_from_config
-    
-    optimizer = create_optimizer_from_config(config, Context['model'].parameters())
-    return optimizer
-
-def create_criterion(config):
-
-    from deept.model.scores import create_score_from_config
-    
-    criterion = create_score_from_config(config['criterion'], config)
-    return criterion
-
-def create_scores(config):
-
-    from deept.model.scores import create_score_from_config
-
+def create_scores(config, key):
+    from deept.components.scores import create_score_from_config
     scores = []
-    if config['scores', None] is not None:
-        for key in config['scores']:
-            score = create_score_from_config(key, config)
-            scores.append(score)
-
+    for score_config in config[key]:
+        if not isinstance(score_config, dict):
+            raise ValueError(f'Got unexpected criterion type. Got {type(score_config)}!')
+        score = create_score_from_config(Config(score_config), config)
+        scores.append(score)
+    my_print(f'~~~~ Created {key}: {scores}!')
     return scores
 
-def create_lr_scheduler(config):
-
-    from deept.util.globals import Context
-    from deept.model.lr_scheduler import create_lr_scheduler_from_config
-
-    lr_scheduler = create_lr_scheduler_from_config(config, Context['optimizer'])
-    
-    return lr_scheduler
+def create_optimizers_and_lr_schedulers(config):
+    from deept.components.optimizer import create_optimizers_and_lr_schedulers_from_config
+    optimizers, lr_schedulers = create_optimizers_and_lr_schedulers_from_config(config, Context['model'])
+    my_print(f'~~~~ Created optimizers: {optimizers}!')
+    my_print(f'~~~~ Created lr_schedulers: {lr_schedulers}!')
+    return optimizers, lr_schedulers
 
 def create_checkpoint_manager(config):
-
     from deept.util.checkpoint_manager import CheckpointManager
-
     checkpoint_manager = CheckpointManager.create_train_checkpoint_manager_from_config(config)
     checkpoint_manager.restore_if_requested()
-    
+    my_print(f'~~~~ Created checkoint_manager!')
     return checkpoint_manager
 
 def send_to_device():
@@ -220,17 +186,34 @@ def send_to_device():
         score = score.to(Settings.get_device()) 
         scores.append(score)
 
+    criterions = []
+    for criterion in Context['criterions']:
+        criterion = criterion.to(Settings.get_device()) 
+        criterions.append(criterion)
+
     Context.overwrite('scores', scores)
+    Context.overwrite('criterions', criterions)
     Context.overwrite('model', Context['model'].to(Settings.get_device()))
-    Context.overwrite('criterion', Context['criterion'].to(Settings.get_device()))
 
 
 if __name__ == '__main__':
 
-    my_print(''.center(60, '-'))
-    my_print(' Hi! '.center(60, '-'))
-    my_print(' Script: train.py '.center(60, '-'))
-    my_print(''.center(60, '-'))
+    my_print(
+""">>=========================================================<<
+||                                                         ||
+||     $$$$$$$\                             $$$$$$$$\      ||
+||     $$  __$$\                            \__$$  __|     ||
+||     $$ |  $$ | $$$$$$\   $$$$$$\   $$$$$$\  $$ |        ||
+||     $$ |  $$ |$$  __$$\ $$  __$$\ $$  __$$\ $$ |        ||
+||     $$ |  $$ |$$$$$$$$ |$$$$$$$$ |$$ /  $$ |$$ |        ||
+||     $$ |  $$ |$$   ____|$$   ____|$$ |  $$ |$$ |        ||
+||     $$$$$$$  |\$$$$$$$\ \$$$$$$$\ $$$$$$$  |$$ |        ||
+||     \_______/  \_______| \_______|$$  ____/ \__|        ||
+||                                   $$ |                  ||
+||                                   $$ |                  ||
+||                                   \__|                  ||
+||                                                         ||
+>>=========================================================<<""")
 
     DeepTConfigDescription.create_deept_config_description()
 
