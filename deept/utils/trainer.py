@@ -75,6 +75,11 @@ class Trainer:
 
                 self.train_step(data)
 
+                if hasattr(self.model, 'train_step_end_callback'):
+                    self.model.train_step_end_callback(
+                        self.checkpoint_manager.step_count+1,
+                    )
+
                 if self.print_per_step_summary:
                     self.print_step_summary()
 
@@ -88,6 +93,11 @@ class Trainer:
                         return
 
             for scheduler in self.lr_schedulers: scheduler.epoch()
+
+            if hasattr(self.model, 'train_epoch_end_callback'):
+                self.model.train_epoch_end_callback(
+                    self.checkpoint_manager.epoch_count
+                )
 
             if self.checkpoint_manager.do_checkpoint_after_epoch():
                 self.do_checkpoint()
@@ -124,10 +134,16 @@ class Trainer:
 
         self.model.eval()
 
+        if hasattr(self.model, 'test_start_callback'):
+            self.model.test_start_callback()
+
         steps = 0
         for data in self.dev_dataloader:
             self.eval_step(data)
             steps += 1
+
+        if hasattr(self.model, 'test_end_callback'):
+            self.model.test_end_callback()
 
         self.create_fill_checkpoint_summary(
             self.eval_summary,

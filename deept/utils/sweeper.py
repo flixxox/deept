@@ -49,8 +49,6 @@ class Sweeper:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-        assert self.metric is not None and isinstance(self.metric, str)
-        assert self.maximize is not None and isinstance(self.maximize, bool)
         assert self.function is not None
         assert self.function_args is not None
         assert self.normal_config is not None
@@ -229,8 +227,6 @@ class GridSweeper(Sweeper):
             config, function, function_args,
             config['best_checkpoint_indicator'],
             config['best_checkpoint_indicator_goal'],
-            metric = config['sweep_configuration']['metric']['name', 'test_acc'],
-            maximize = config['sweep_configuration']['metric']['maximize', True],
             max_count = config['sweep_configuration']['count'],
             constraints = config['sweep_configuration']['constraints', None],
             sweep_parameters = config['sweep_configuration']['parameters'],
@@ -268,8 +264,6 @@ class RandomSweeper(GridSweeper):
             config, function, function_args,
             config['best_checkpoint_indicator'],
             config['best_checkpoint_indicator_goal'],
-            metric = config['sweep_configuration']['metric']['name', 'test_acc'],
-            maximize = config['sweep_configuration']['metric']['maximize', True],
             max_count = config['sweep_configuration']['count'],
             constraints = config['sweep_configuration']['constraints', None],
             sweep_parameters = config['sweep_configuration']['parameters'],

@@ -92,7 +92,6 @@ def setup_settings(config, rank, world_size, train, time):
     Settings.set_number_of_workers(world_size)
     Settings.set_train_flag(train)
     Settings.set_time_flag(time)
-    Settings.set_global_seed(config['seed', 80420])
     if config['number_of_gpus'] < 1:
         my_print('Limiting to CPU!')
         Settings.set_cpu()
@@ -179,6 +178,7 @@ def setup_ddp(config):
     ) # Uses nccl for gpu and gloo for cpu communication
 
 def setup_seeds(config):
+    Settings.set_global_seed(config['seed', 0])
     np.random.seed(Settings.get_global_seed())
     torch.manual_seed(Settings.get_global_seed())
     if Settings.is_gpu():

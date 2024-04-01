@@ -67,7 +67,7 @@ def start(config):
             sweeper = create_sweeper_from_config(config, train, ())
             sweeper.sweep()
         else:
-            setup_and_train(config, 0, 1)
+            setup_and_train(0, config, 1)
 
 def setup_and_train(rank, config, world_size):
     setup(config, rank, world_size, train=True, time=False)
