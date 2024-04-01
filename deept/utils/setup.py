@@ -1,3 +1,4 @@
+from os.path import join, isdir
 
 import torch
 import numpy as np
@@ -26,21 +27,17 @@ def check_and_correct_requested_number_of_gpus(config, train=True):
 
 def setup(config, rank, world_size, 
     train=True,
-    time=False,
-    create_directories=True
+    time=False
 ):
     if config['user_code'] is not None:
         import_user_code(config['user_code'])
     DeepTConfigDescription.create_deept_config_description()
     setup_settings(config, rank, world_size, train, time)
-    if create_directories:
-        setup_directories(config)
     setup_torch(config)
     if config['number_of_gpus'] > 0:
         setup_cuda(config)
     if config['number_of_gpus'] > 1:
         setup_ddp(config)
-    setup_seeds(config)
 
 def import_user_code(paths_to_user_code):
 
@@ -104,15 +101,15 @@ def setup_settings(config, rank, world_size, train, time):
         Settings.set_device(f'cuda:{Settings.rank()}')
 
 def setup_directories(config):
-    
-    from os.path import join
-    from os.path import isdir
 
     def __maybe_create_dir(dir):
         from os import mkdir
         if not isdir(dir):
             mkdir(dir)
-
+    
+    Settings.reset_directories()
+    if config.has_key('output_folder_root'):
+        Settings.add_dir('output_dir_root', config['output_folder_root'])
     Settings.add_dir('output_dir', config['output_folder'])
     Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
     Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
@@ -121,9 +118,10 @@ def setup_directories(config):
         Settings.add_dir('search_dir', join(config['output_folder'], 'search'))
     
     if Settings.rank() == 0:
-
         if Settings.is_training():
-
+            if Settings.has_dir('output_dir_root'):
+                __maybe_create_dir(Settings.get_dir('output_dir_root'))
+            __maybe_create_dir(Settings.get_dir('output_dir'))
             __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
             __maybe_create_dir(Settings.get_dir('numbers_dir'))
 
@@ -134,7 +132,6 @@ def setup_directories(config):
                 Expected to have the directory {Settings.get_dir('numbers_dir')}"""
 
         else:
-
             __maybe_create_dir(Settings.get_dir('search_dir'))
 
             assert isdir(Settings.get_dir('search_dir')), f"""Something went wrong in creating directories! 

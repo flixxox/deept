@@ -34,10 +34,23 @@ def value_to_str(v, no_precise=False):
             v = float_to_str_precise(v)
     return v
 
+def write_to_file(dir, filename, string):
+    if Settings.rank() == 0:
+        with open(join(Settings.get_dir(dir), filename), 'a') as file:
+            file.write(f'{string}\n')
+
+def write_and_print(dir, filename, string):
+    my_print(string)
+    write_to_file(dir, filename, string)
+
 def write_number_to_file(filename, value):
     if Settings.rank() == 0:
         with open(join(Settings.get_dir('numbers_dir'), filename), 'a') as file:
-            file.write(f'{value}\n')
+            file.write(f'{value_to_str(value)}\n')
+
+def write_scores_dict_to_files(scores_dict, prefix=''):
+    for k, v in scores_dict.items():
+        write_number_to_file(prefix + '.' + k, v)
 
 def print_summary(name, number, **kwargs):
     
@@ -98,10 +111,6 @@ def print_summary(name, number, **kwargs):
 
     my_print(to_print)
 
-def write_scores_dict_to_files(scores_dict, prefix=''):
-    for k, v in scores_dict.items():
-        write_number_to_file(prefix + '.' + k, v)
-
 
 class ScoreSummary:
 
@@ -122,6 +131,15 @@ class ScoreSummary:
     def log_latest(self, number):
         write_scores_dict_to_files(self.summaries[-1], prefix=self.prefix)
         print_summary(self.prefix, number, **self.summaries[-1])
+
+    def get_summary_of_best(self, best_key, reduce_fn):
+        x = [summary[best_key] for summary in self.summaries]
+        best = reduce_fn(x)
+        best_index = x.index(best)
+        return best_index, self.summaries[best_index]
+
+    def get_best_value(self, best_key, reduce_fn):
+        return reduce_fn([summary[best_key] for summary in self.summaries])
 
     def get_latest(self):
         return self.summaries[-1]

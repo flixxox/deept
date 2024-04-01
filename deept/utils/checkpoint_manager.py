@@ -14,8 +14,16 @@ class CheckpointManager:
         
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+        if self.best_goal is not None:
+            if self.best_goal == 'min':
+                self.maximize = False
+            elif self.best_goal == 'max':
+                self.maximize = True
+            else:
+                raise ValueError(f'Did not regonize the goal of the best score. Got: {self.best_goal}!')
         
-        self.best_score = float('inf')
+        self.best_score = None
         self.ckpts_since_best = 0
         self.step_count = 1 # The current step. Increased after do_checkpoint_after_step()
         self.epoch_count = 1 # The current epoch. Increased after do_checkpoint_after_epoch()
@@ -38,6 +46,7 @@ class CheckpointManager:
             checkpoints_till_abort = config['checkpoints_till_abort', 0],
             checkpoint_start_after = config['checkpoint_start_after', 0],
             best_indicator = config['best_checkpoint_indicator'],
+            best_goal = config['best_checkpoint_indicator_goal'],
             load_weights = config['load_weights', False],
             load_weights_from = config['load_weights_from', ""],
             strict_loading = config['checkpoint_strict_loading', True] 
@@ -125,7 +134,7 @@ class CheckpointManager:
             
             cur_score = score_summary[self.best_indicator]
 
-            if cur_score < self.best_score:
+            if self.__is_better(cur_score):
                 self.save_best()
                 self.best_score = cur_score
                 self.ckpts_since_best = 0
@@ -176,6 +185,13 @@ class CheckpointManager:
 
         torch.save(to_save, path)
 
+    def __is_better(self, cur_score):
+        if self.best_score is None:
+            return True
+        if self.maximize:
+            return cur_score > self.best_score
+        else:
+            return cur_score < self.best_score
 
     def keep_going(self):
 

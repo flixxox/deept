@@ -29,6 +29,10 @@ class Context:
             from deept.utils.debug import my_print
             my_print(f'Warning! Context {key} has not been set yet!')
 
+    @staticmethod
+    def reset():
+        Context.__CONTEXT = {}
+
     def __class_getitem__(cls, key):
         return Context.__CONTEXT[key]
 
@@ -45,6 +49,10 @@ class Settings:
     __SEED      = None
     __RANK      = None
     __DIRS      = {}
+
+    @staticmethod
+    def reset_directories():
+        Settings.__DIRS = {}
 
     @staticmethod
     def set_train_flag(flag):
@@ -101,8 +109,7 @@ class Settings:
 
     @staticmethod
     def set_global_seed(seed):
-        if Settings.__SEED is None:
-            Settings.__SEED = seed
+        Settings.__SEED = seed
     
     @staticmethod
     def get_global_seed():
@@ -132,4 +139,8 @@ class Settings:
     @staticmethod
     def get_dir(name):
         return Settings.__DIRS[name]
+
+    @staticmethod
+    def has_dir(name):
+        return name in Settings.__DIRS
 

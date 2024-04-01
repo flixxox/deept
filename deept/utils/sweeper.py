@@ -1,8 +1,14 @@
 
 import random
+from os.path import join
+from copy import deepcopy
 
 from deept.utils.debug import my_print
-from deept.utils.log import value_to_str
+from deept.utils.log import (
+    value_to_str,
+    write_to_file,
+    write_and_print
+)
 
 __SWEEPER_DICT__ = {}
 
@@ -25,10 +31,20 @@ def create_sweeper_from_config(config, function, function_args):
 
 class Sweeper:
 
-    def __init__(self, function, function_args, **kwargs):
-
+    def __init__(self,
+        normal_config,
+        function,
+        function_args,
+        best_indicator,
+        best_goal,
+        **kwargs
+    ):
+        
+        self.normal_config = normal_config
         self.function = function
         self.function_args = function_args
+        self.best_indicator = best_indicator
+        self.best_goal = best_goal
 
         for k, v in kwargs.items():
             setattr(self, k, v)
@@ -37,6 +53,9 @@ class Sweeper:
         assert self.maximize is not None and isinstance(self.maximize, bool)
         assert self.function is not None
         assert self.function_args is not None
+        assert self.normal_config is not None
+        assert self.best_indicator is not None
+        assert self.best_goal is not None
         assert self.max_count is not None
         assert self.sweep_parameters is not None
         assert self.output_folder_root is not None
@@ -47,10 +66,12 @@ class Sweeper:
                 if not isinstance(constraint, str):
                     raise ValueError(f'Constraint must be a string. Got: {constraint}!')
             
-        if self.maximize:
+        if self.best_goal == 'max':
             self.reduce_fn = max
-        else:
+        elif self.best_goal == 'min':
             self.reduce_fn = min
+        else:
+            raise ValueError(f'Did not regonize the goal of the best score. Got: {self.best_goal}!')
 
         self.parse_sweep_parameters()
 
@@ -71,20 +92,32 @@ class Sweeper:
             self.num_combinations *= len(self.parsed_sweep_parameters[name])
 
     def sweep(self):
+
         for i in range(min(self.max_count, self.num_combinations)):
+
             sweep_config = self.get_config(i)
             sweep_config_as_string = self.get_sweep_config_as_string(sweep_config)
+
             my_print('~~~~~~ SWEEPER ~~~~~~')
+
             if not self.fulfills_constraints(sweep_config):
                 my_print(f'Sweep config {sweep_config_as_string} does not fulfill constraints.')
                 my_print('Skip!')
             else:
                 my_print(f'Start sweep with: {sweep_config_as_string}')
-                result = self.function(sweep_config=sweep_config)
-                self.results[sweep_config_as_string] = result
-                self.log_sweep_result(result, sweep_config_as_string)
-                self.log_average_so_far(sweep_config_as_string)
-                self.update_performance_sorted_list(result, sweep_config_as_string)
+                self.call_sweep_fn_and_log(sweep_config, sweep_config_as_string)
+
+    def call_sweep_fn_and_log(self, sweep_config, sweep_config_as_string):
+
+        config = self.merge_normal_and_sweep_config(sweep_config)
+
+        result = self.function(config, *self.function_args)
+        
+        self.results[sweep_config_as_string] = result
+
+        self.log_sweep_result(result, sweep_config_as_string)
+        self.log_average_so_far(result, sweep_config_as_string)
+        self.update_performance_sorted_list(result, sweep_config_as_string)
         
     def get_sweep_config_as_string(self, sweep_config):
         as_string = ''
@@ -105,30 +138,65 @@ class Sweeper:
                 return False
         return True
 
-    def log_sweep_result(self, result, sweep_config_as_string):
-        write_to_file(self.output_folder_root, 'sweep_summary', f' ~~~ {sweep_config_as_string} ~~~ ') 
-        log_summary(self.output_folder_root, 'sweep_summary', result,
-            best_ind_test='test_acc',
-            best_ind_train='train_acc',
-            log_train=True
+    def merge_normal_and_sweep_config(self, sweep_config):
+        config = deepcopy(self.normal_config)
+
+        output_folder_for_run = ''
+        for k in config['sweep_configuration']['parameters'].keys():
+            v = sweep_config[k]
+            config[k] = v
+            v = value_to_str(v, no_precise=True)
+            output_folder_for_run = f'{output_folder_for_run}__{k}_{v}'
+        output_folder_for_run = output_folder_for_run[2:]
+        
+        config['output_folder_root'] = config['output_folder']
+        config['output_folder'] = join(config['output_folder'], output_folder_for_run)
+
+        return config
+
+    def log_sweep_result(self, result, sweep_config_as_string): 
+        
+        best_ckpt_nb_train, best_train_summary = result['train'].get_summary_of_best(
+            self.best_indicator,
+            self.reduce_fn
         )
 
-    def log_average_so_far(self, sweep_config_as_string):
-        test_metrics = [self.reduce_fn(result['test'][self.metric]) for result in self.results.values()]
-        avg = sum(test_metrics) / len(test_metrics)
-        var = sum([(avg-x)**2 for x in test_metrics])/len(test_metrics)
-        write_to_file(self.output_folder_root, 'sweep_summary', f'Avg {self.metric} so far: {avg:4.2f}')
-        write_to_file(self.output_folder_root, 'sweep_summary', f'Var {self.metric} so far: {var:4.2f}')
-        my_print(f'Avg {self.metric} so far: {avg:4.2f}')
-        my_print(f'Var {self.metric} so far: {var:4.2f}')
+        best_ckpt_nb_eval, best_eval_summary = result['eval'].get_summary_of_best(
+            self.best_indicator,
+            self.reduce_fn
+        )
 
+        write_and_print('output_dir_root', 'sweep_summary', f' ~~~~~~ [ {sweep_config_as_string} ] ~~~~~~ ')
+        write_and_print('output_dir_root', 'sweep_summary', f' ~~ [Train] Best Epoch {best_ckpt_nb_train}')
+
+        for k, v in best_train_summary.items():
+            write_and_print('output_dir_root', 'sweep_summary', f' Best train {k}: {value_to_str(v)}')
+
+        write_and_print('output_dir_root', 'sweep_summary', f' ~~ [Eval] Best Epoch {best_ckpt_nb_eval}')
+
+        for k, v in best_eval_summary.items():
+            write_and_print('output_dir_root', 'sweep_summary', f' Best eval {k}: {value_to_str(v)}')
+
+    def log_average_so_far(self, result, sweep_config_as_string):
+
+        eval_metrics = [
+            result['eval'].get_best_value(self.best_indicator, self.reduce_fn)
+            for result in self.results
+            .values()
+        ]
+        avg = sum(eval_metrics) / len(eval_metrics)
+        var = sum([(avg-x)**2 for x in eval_metrics])/len(eval_metrics)
+        
+        write_and_print('output_dir_root', 'sweep_summary', f'Avg eval {self.best_indicator} so far: {value_to_str(avg)}')
+        write_and_print('output_dir_root', 'sweep_summary', f'Var eval {self.best_indicator} so far: {value_to_str(var)}')
+    
     def update_performance_sorted_list(self, result, sweep_config_as_string):
-        this_best = self.reduce_fn(result['test'][self.metric])
+        this_best = result['eval'].get_best_value(self.best_indicator, self.reduce_fn)
         self.performance_sorted_configs.append((this_best, sweep_config_as_string))
         self.performance_sorted_configs.sort(key=lambda x: x[0], reverse=True)
-        write_to_file(self.output_folder_root, 'performance_sorted_configs', '~~~~ NEW SWEEP ~~~~')
+        write_to_file('output_dir_root', 'performance_sorted_configs', '~~~~ NEW SWEEP ~~~~')
         for (metric, config) in self.performance_sorted_configs:
-            write_to_file(self.output_folder_root, 'performance_sorted_configs', f'{config}: {metric:4.2f}')
+            write_to_file('output_dir_root', 'performance_sorted_configs', f'{config}: {value_to_str(metric)}')
 
 
 @register_sweeper('grid')
@@ -158,7 +226,9 @@ class GridSweeper(Sweeper):
     @staticmethod
     def create_from_config(config, function, function_args):
         return GridSweeper(
-            function, function_args,
+            config, function, function_args,
+            config['best_checkpoint_indicator'],
+            config['best_checkpoint_indicator_goal'],
             metric = config['sweep_configuration']['metric']['name', 'test_acc'],
             maximize = config['sweep_configuration']['metric']['maximize', True],
             max_count = config['sweep_configuration']['count'],
@@ -195,7 +265,9 @@ class RandomSweeper(GridSweeper):
     @staticmethod
     def create_from_config(config, function, function_args):
         return RandomSweeper(
-            function, function_args,
+            config, function, function_args,
+            config['best_checkpoint_indicator'],
+            config['best_checkpoint_indicator_goal'],
             metric = config['sweep_configuration']['metric']['name', 'test_acc'],
             maximize = config['sweep_configuration']['metric']['maximize', True],
             max_count = config['sweep_configuration']['count'],

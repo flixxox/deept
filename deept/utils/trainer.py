@@ -91,6 +91,11 @@ class Trainer:
 
             if self.checkpoint_manager.do_checkpoint_after_epoch():
                 self.do_checkpoint()
+
+        return {
+            'train': self.train_summary,
+            'eval': self.eval_summary
+        }
     
     def do_checkpoint(self):
 

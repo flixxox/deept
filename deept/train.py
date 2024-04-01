@@ -7,12 +7,15 @@ import torch
 from deept.utils.trainer import Trainer
 from deept.utils.globals import Settings, Context
 from deept.utils.debug import my_print, print_memory_usage
+from deept.utils.sweeper import create_sweeper_from_config
 from deept.utils.config import (
     Config,
     DeepTConfigDescription
 )
 from deept.utils.setup import (
     setup,
+    setup_seeds,
+    setup_directories,
     check_and_correct_requested_number_of_gpus
 )
 
@@ -54,24 +57,30 @@ def start(config):
     if world_size > 1:
         import torch.multiprocessing as mp
         mp.spawn(
-            train,
+            setup_and_train,
             args=(config, world_size, ),
             nprocs=world_size
         )
     else:
         if config['do_sweep', False]:
-            from deept.utils.sweeper import create_sweeper_from_config
-            sweeper = create_sweeper_from_config(config, main)
+            setup(config, 0, 1, train=True, time=False)
+            sweeper = create_sweeper_from_config(config, train, ())
             sweeper.sweep()
         else:
-            train(0, config, 1)
+            setup_and_train(config, 0, 1)
 
-def train(rank, config, world_size, sweep_config=None):
-
-    if config['resume_training']:
-        config['output_folder'] = config['resume_training_from']
-
+def setup_and_train(rank, config, world_size):
     setup(config, rank, world_size, train=True, time=False)
+    train(config)
+
+def train(config):
+
+    Context.reset()
+
+    config.print_config()
+
+    setup_directories(config)
+    setup_seeds(config)
 
     config['update_freq'] = config['update_freq', 1] // Settings.get_number_of_workers()
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')
@@ -119,10 +128,7 @@ def train(rank, config, world_size, sweep_config=None):
     my_print(f'Start training at checkpoint {checkpoint_manager.get_checkpoint_number()}!')
     print_memory_usage()
 
-    trainer.train()
-
-    train_dataloader.shutdown()
-    dev_dataloader.shutdown()
+    result = trainer.train()
 
     if config['average_last_checkpoints', False]:
         checkpoint_manager.average_last_N_checkpoints(config['checkpoints_to_average'])
@@ -134,6 +140,8 @@ def train(rank, config, world_size, sweep_config=None):
     my_print(f'Average time per checkpoint: {average_time_per_checkpoint_s:4.2f}s {average_time_per_checkpoint_s/60:4.2f}min')
 
     my_print('Done!')
+
+    return result
 
 def create_dataloader(config):
     from deept.data.dataset import create_dataset_from_config
@@ -165,21 +173,21 @@ def create_scores(config, key):
             raise ValueError(f'Got unexpected criterion type. Got {type(score_config)}!')
         score = create_score_from_config(Config(score_config), config)
         scores.append(score)
-    my_print(f'~~~~ Created {key}: {scores}!')
+    my_print(f'Created {key}: {scores}!')
     return scores
 
 def create_optimizers_and_lr_schedulers(config):
     from deept.components.optimizer import create_optimizers_and_lr_schedulers_from_config
     optimizers, lr_schedulers = create_optimizers_and_lr_schedulers_from_config(config, Context['model'])
-    my_print(f'~~~~ Created optimizers: {optimizers}!')
-    my_print(f'~~~~ Created lr_schedulers: {lr_schedulers}!')
+    my_print(f'Created optimizers: {optimizers}!')
+    my_print(f'Created lr_schedulers: {lr_schedulers}!')
     return optimizers, lr_schedulers
 
 def create_checkpoint_manager(config):
     from deept.utils.checkpoint_manager import CheckpointManager
     checkpoint_manager = CheckpointManager.create_train_checkpoint_manager_from_config(config)
     checkpoint_manager.restore_if_requested()
-    my_print(f'~~~~ Created checkoint_manager!')
+    my_print(f'Created checkoint_manager!')
     return checkpoint_manager
 
 def send_to_device():
@@ -226,6 +234,7 @@ if __name__ == '__main__':
 
     config = Config.parse_config(args)
 
-    config.print_config()
+    if config['resume_training']:
+        config['output_folder'] = config['resume_training_from']
 
     start(config)
