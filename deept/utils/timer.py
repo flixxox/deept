@@ -4,8 +4,8 @@ import time
 import torch
 import torch.nn as nn
 
-from deept.util.debug import my_print
-from deept.util.globals import Settings
+from deept.utils.debug import my_print
+from deept.utils.globals import Settings
 
 
 

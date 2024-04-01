@@ -2,9 +2,9 @@
 import torch
 import numpy as np
 
-from deept.util.debug import my_print
-from deept.util.globals import Settings
-from deept.util.config import DeepTConfigDescription
+from deept.utils.debug import my_print
+from deept.utils.globals import Settings
+from deept.utils.config import DeepTConfigDescription
 
 
 def check_and_correct_requested_number_of_gpus(config, train=True):

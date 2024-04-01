@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Union
 from dataclasses import dataclass
 
-from deept.util.debug import my_print
+from deept.utils.debug import my_print
 
 
 class CommonAcceptedInputs(str, Enum):

@@ -1,7 +1,7 @@
 
 
-from deept.util.config import Config
-from deept.util.globals import Settings
+from deept.utils.config import Config
+from deept.utils.globals import Settings
 
 __DATALOADER__ = {}
 

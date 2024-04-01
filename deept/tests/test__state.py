@@ -3,7 +3,7 @@ import unittest
 import torch
 import numpy as np
 
-from deept.util.globals import Settings
+from deept.utils.globals import Settings
 from deept.model.state import DynamicState
 
 class TestState(unittest.TestCase):

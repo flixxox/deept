@@ -12,7 +12,7 @@ def register_model(name):
     return register_model_fn
 
 def create_model_from_config(config):
-    from deept.util.debug import my_print
+    from deept.utils.debug import my_print
     model = __MODEL_DICT__[config['model']].create_from_config(config)
     check_model(model)
     my_print(f'Initializing model weights!')

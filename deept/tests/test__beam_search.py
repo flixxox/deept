@@ -3,9 +3,9 @@ import unittest
 import numpy as np
 import torch
 
-from deept.util.config import Config
-from deept.util.debug import my_print
-from deept.util.data import Vocabulary
+from deept.utils.config import Config
+from deept.utils.debug import my_print
+from deept.utils.data import Vocabulary
 from deept.model.state import DynamicState
 from deept.search.beam_search import BeamSearch
 

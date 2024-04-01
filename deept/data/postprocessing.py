@@ -1,5 +1,5 @@
 
-from deept.util.globals import Context
+from deept.utils.globals import Context
 
 
 __POSTPROCESSING_FUNCTIONS__ = {}

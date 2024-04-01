@@ -9,10 +9,10 @@ import torch.ao.quantization as torchquant
 
 import argparse
 
-from deept.util.config import Config
-from deept.util.debug import my_print
-from deept.util.globals import Settings
-from deept.util.setup import (
+from deept.utils.config import Config
+from deept.utils.debug import my_print
+from deept.utils.globals import Settings
+from deept.utils.setup import (
     setup,
     check_and_correct_requested_number_of_gpus
 )

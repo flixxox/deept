@@ -4,14 +4,14 @@ from os.path import join
 
 import torch
 
-from deept.util.trainer import Trainer
-from deept.util.globals import Settings, Context
-from deept.util.debug import my_print, print_memory_usage
-from deept.util.config import (
+from deept.utils.trainer import Trainer
+from deept.utils.globals import Settings, Context
+from deept.utils.debug import my_print, print_memory_usage
+from deept.utils.config import (
     Config,
     DeepTConfigDescription
 )
-from deept.util.setup import (
+from deept.utils.setup import (
     setup,
     check_and_correct_requested_number_of_gpus
 )
@@ -59,9 +59,14 @@ def start(config):
             nprocs=world_size
         )
     else:
-        train(0, config, 1)
+        if config['do_sweep', False]:
+            from deept.utils.sweeper import create_sweeper_from_config
+            sweeper = create_sweeper_from_config(config, main)
+            sweeper.sweep()
+        else:
+            train(0, config, 1)
 
-def train(rank, config, world_size):
+def train(rank, config, world_size, sweep_config=None):
 
     if config['resume_training']:
         config['output_folder'] = config['resume_training_from']
@@ -171,7 +176,7 @@ def create_optimizers_and_lr_schedulers(config):
     return optimizers, lr_schedulers
 
 def create_checkpoint_manager(config):
-    from deept.util.checkpoint_manager import CheckpointManager
+    from deept.utils.checkpoint_manager import CheckpointManager
     checkpoint_manager = CheckpointManager.create_train_checkpoint_manager_from_config(config)
     checkpoint_manager.restore_if_requested()
     my_print(f'~~~~ Created checkoint_manager!')
@@ -179,7 +184,7 @@ def create_checkpoint_manager(config):
 
 def send_to_device():
 
-    from deept.util.globals import Context, Settings
+    from deept.utils.globals import Context, Settings
 
     scores = []
     for score in Context['scores']:

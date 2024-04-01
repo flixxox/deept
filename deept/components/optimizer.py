@@ -1,7 +1,7 @@
 
 import torch
 
-from deept.util.config import Config
+from deept.utils.config import Config
 from deept.components.lr_scheduler import create_lr_scheduler_from_config
 
 __OPTIMIZER_DICT__ = {}

@@ -5,10 +5,10 @@ import torch
 import numpy as np
 
 from models import create_model_from_config
-from deept.util.config import Config
-from deept.util.data import Vocabulary
-from deept.util.setup import setup_torch_from_config
-from deept.util.checkpoint_manager import CheckpointManager
+from deept.utils.config import Config
+from deept.utils.data import Vocabulary
+from deept.utils.setup import setup_torch_from_config
+from deept.utils.checkpoint_manager import CheckpointManager
 
 # ======== CONFIG
 

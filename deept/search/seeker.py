@@ -4,8 +4,8 @@ from os.path import join
 
 import torch
 
-from deept.util.globals import Settings
-from deept.util.debug import my_print, print_memory_usage
+from deept.utils.globals import Settings
+from deept.utils.debug import my_print, print_memory_usage
 from deept.data.postprocessing import get_postprocessing_fn
 
 

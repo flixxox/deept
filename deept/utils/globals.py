@@ -9,7 +9,7 @@ class Context:
         if key not in Context.__CONTEXT:
             Context.__CONTEXT[key] = obj
         else:
-            from deept.util.debug import my_print
+            from deept.utils.debug import my_print
             my_print(f'Warning! Context {key} is already set. Skipping!')
 
     @staticmethod
@@ -26,7 +26,7 @@ class Context:
         if key in Context.__CONTEXT:
             Context.__CONTEXT[key] = obj
         else:
-            from deept.util.debug import my_print
+            from deept.utils.debug import my_print
             my_print(f'Warning! Context {key} has not been set yet!')
 
     def __class_getitem__(cls, key):
@@ -126,7 +126,7 @@ class Settings:
         if path not in Settings.__DIRS:
             Settings.__DIRS[name] = path
         else:
-            from deept.util.debug import my_print
+            from deept.utils.debug import my_print
             my_print(f'Warning! Directory {name} is already set. Skipping!')
 
     @staticmethod

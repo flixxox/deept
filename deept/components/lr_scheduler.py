@@ -3,7 +3,7 @@ from os.path import join
 
 import torch
 
-from deept.util.debug import write_number_to_file
+from deept.utils.log import write_number_to_file
 
 
 __LR_SCHEDULER_DICT__ = {}

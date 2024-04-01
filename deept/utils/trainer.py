@@ -6,13 +6,11 @@ from torch import autocast
 from torch.cuda import amp
 import torch.distributed as dist
 
-from deept.util.globals import Settings, Context
-from deept.components.scores import write_scores_dict_to_files
-from deept.util.debug import (
+from deept.utils.globals import Settings, Context
+from deept.utils.log import ScoreSummary, write_number_to_file
+from deept.utils.debug import (
     my_print,
-    print_summary,
     print_memory_usage,
-    write_number_to_file,
     search_name_of_parameter
 )
 
@@ -30,6 +28,9 @@ class Trainer:
         self.optimizers = Context['optimizers']
         self.lr_schedulers = Context['lr_schedulers']
         self.scores = Context['scores']
+
+        self.train_summary = ScoreSummary(prefix='train')
+        self.eval_summary = ScoreSummary(prefix='eval')
 
         if Trainer.is_ddp():
             self.model_input_keys = self.model.module.input_keys
@@ -95,14 +96,22 @@ class Trainer:
 
         time_passed_s = self.checkpoint_manager.timer_end()
 
-        self.do_train_epoch_summary()
+        self.create_fill_checkpoint_summary(
+            self.train_summary,
+            self.checkpoint_manager.step_count-1,
+            'train'
+        )
+        
+        self.train_summary.log_latest(
+            self.checkpoint_manager.get_checkpoint_number()
+        )
 
-        eval_score_summary = self.eval()
+        self.eval()
 
         print_memory_usage()
         my_print(f'Training checkpoint took: {time_passed_s:4.2f}s, {time_passed_s / 60:4.2f}min')
 
-        self.checkpoint_manager.save(eval_score_summary)
+        self.checkpoint_manager.save(self.eval_summary.get_latest())
 
         self.checkpoint_manager.timer_start()
 
@@ -115,11 +124,17 @@ class Trainer:
             self.eval_step(data)
             steps += 1
 
-        score_summary = self.do_eval_epoch_summary(steps)
+        self.create_fill_checkpoint_summary(
+            self.eval_summary,
+            steps,
+            'eval'
+        )
+
+        self.eval_summary.log_latest(
+            self.checkpoint_manager.get_checkpoint_number()
+        )
 
         self.model.train()
-
-        return score_summary
 
     def train_step(self, data):
 
@@ -199,34 +214,22 @@ class Trainer:
         checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
         print_summary(True, checkpoint_number, **score_summary)
 
-    def do_train_epoch_summary(self):
-        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
-        score_summary = self.create_score_summary_dict()
-        write_scores_dict_to_files(score_summary, prefix='train')
-        score_summary['train_steps'] = self.checkpoint_manager.step_count-1
-        print_summary(True, checkpoint_number, **score_summary)
-        self.reset_accumulators()
+    def create_fill_checkpoint_summary(self, summary, steps, prefix):
 
-    def do_eval_epoch_summary(self, steps):
-        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
-        score_summary = self.create_score_summary_dict()
-        write_scores_dict_to_files(score_summary, prefix='dev')
-        score_summary['eval_steps'] = steps
-        print_summary(False, checkpoint_number, **score_summary)
-        self.reset_accumulators()
-        return score_summary
+        summary.push_new_summary()
 
-    def create_score_summary_dict(self):
-
-        score_summary = {}
         for criterion in self.criterions:
-            criterion_values = criterion.get_reduced_accumulator_values()
-            score_summary.update(criterion_values)
+            summary.update_latest_from_score(criterion)
 
         for score in self.scores:
-            score_summary.update(score.get_reduced_accumulator_values())
+            summary.update_latest_from_score(score)
 
-        return score_summary
+        summary.update_latest_from_key_value(
+            f'{prefix}_steps',
+            steps
+        )
+
+        self.reset_accumulators()
 
     def reset_accumulators(self):
         for criterion in self.criterions:

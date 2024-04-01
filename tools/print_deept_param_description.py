@@ -8,9 +8,9 @@ import deept.components.model
 import deept.components.scores
 import deept.components.optimizer
 import deept.components.lr_scheduler
-from deept.util.debug import my_print
-from deept.util.setup import import_user_code
-from deept.util.config import DeepTConfigDescription
+from deept.utils.debug import my_print
+from deept.utils.setup import import_user_code
+from deept.utils.config import DeepTConfigDescription
 
 def parse_cli_arguments():
 

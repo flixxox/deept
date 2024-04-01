@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from deept.util.globals import Settings
+from deept.utils.globals import Settings
 
 
 class StaticState:

@@ -1,8 +1,8 @@
 
 import torch
 
-from deept.util.debug import my_print
-from deept.util.globals import Settings
+from deept.utils.debug import my_print
+from deept.utils.globals import Settings
 from deept.data.datapipe import create_dp_from_config
 from deept.data.dataloader import create_dataloader_from_config
 

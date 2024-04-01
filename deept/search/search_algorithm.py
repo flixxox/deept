@@ -11,7 +11,7 @@ def register_search_algorithm(name):
 
 def create_search_algorithm_from_config(config):
     if config['search_algorithm'] in __SEARCH_ALGORITHM_DICT__:
-        from deept.util.debug import my_print
+        from deept.utils.debug import my_print
         search_algorithm = __SEARCH_ALGORITHM_DICT__[config['search_algorithm']].create_from_config(config)
         check_search_algorithm(search_algorithm)
         return search_algorithm

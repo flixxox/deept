@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 import torch.distributed as dist
 
-from deept.util.globals import Settings
-from deept.util.debug import my_print, write_number_to_file
+from deept.utils.debug import my_print
+from deept.utils.globals import Settings
 
 __SCORES__ = {}
 
@@ -25,7 +25,7 @@ def create_score_from_config(score_config, config):
     input_keys = score_config['input_keys']
     reduce_type = score_config['reduce_type', 'avg']
     if score_type in __SCORES__:
-        from deept.util.debug import my_print
+        from deept.utils.debug import my_print
         score = __SCORES__[score_type].create_from_config(config, input_keys, reduce_type)
         check_score(score)
         return score
@@ -40,11 +40,6 @@ def check_score(score):
 
 def get_all_score_keys():
     return list(__SCORES__.keys())
-
-
-def write_scores_dict_to_files(scores_dict, prefix=''):
-    for k, v in scores_dict.items():
-        write_number_to_file(prefix + '.' + k, v)
 
 
 class ScoreAccummulator:
@@ -192,7 +187,7 @@ class CrossEntropy(Score):
     @staticmethod
     def create_from_config(config, input_keys, reduce_type):
 
-        from deept.util.globals import Context
+        from deept.utils.globals import Context
 
         if Context.has_context('pad_index'):
             pad_index = Context['pad_index']

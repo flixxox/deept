@@ -4,8 +4,8 @@ from functools import partial
 
 import torch
 
-from deept.util.debug import my_print
-from deept.util.globals import Settings, Context
+from deept.utils.debug import my_print
+from deept.utils.globals import Settings, Context
 
 
 __DATASETS__ = {}

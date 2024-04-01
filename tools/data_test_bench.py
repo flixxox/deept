@@ -4,12 +4,12 @@ import _setup_env
 import argparse
 
 
-from deept.util.setup import setup
-from deept.util.config import Config
-from deept.util.debug import my_print
-from deept.util.globals import Context
-from deept.util.setup import import_user_code
-from deept.util.debug import print_memory_usage
+from deept.utils.setup import setup
+from deept.utils.config import Config
+from deept.utils.debug import my_print
+from deept.utils.globals import Context
+from deept.utils.setup import import_user_code
+from deept.utils.debug import print_memory_usage
 from deept.data.datapipe import create_dp_from_config
 from deept.data.dataloader import create_dataloader_from_config
 

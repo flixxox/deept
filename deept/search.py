@@ -4,18 +4,18 @@ import argparse
 import torch
 
 from deept.search.seeker import Seeker
-from deept.util.globals import Settings, Context
+from deept.utils.globals import Settings, Context
 from deept.data.datapipe import create_dp_from_config
 from deept.model.model import create_model_from_config
-from deept.util.checkpoint_manager import CheckpointManager
+from deept.utils.checkpoint_manager import CheckpointManager
 from deept.data.dataloader import create_dataloader_from_config
-from deept.util.debug import my_print, get_number_of_trainable_variables
+from deept.utils.debug import my_print, get_number_of_trainable_variables
 from deept.search.search_algorithm import create_search_algorithm_from_config
-from deept.util.config import (
+from deept.utils.config import (
     Config,
     DeepTConfigDescription
 )
-from deept.util.setup import (
+from deept.utils.setup import (
     setup,
     check_and_correct_requested_number_of_gpus
 )
