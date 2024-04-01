@@ -1,7 +1,7 @@
 # A Modular Deep Learning Toolkit #
 
-This repository is used to train and search NMT models created with PyTorch.
-It allows to easily define the model, and if needed optimizers and scores, using native PyTorch API.
+This repository is used to train, eval and search models with PyTorch.
+It allows to easily define the model, optimizers, and scores, using the native PyTorch API.
 Furthermore, it takes care of other functionalities used in training and search in an easy to understand manner.
 
 The main features are:
@@ -9,10 +9,10 @@ The main features are:
 - Easy to define models, optimizers and scores
 - The code is lightweight and easy to understand
 - Multi-threaded data loading
-- Data-parallel multi-gpu training using Horovod
+- Data-parallel multi-gpu training
 - An easy to use API to implement statefull models that are needed for stepwise decoding
-- Implementation for Transformer (Base + Big) and stepwise BeamSearch
 - Checkpoint manager implementing checkpoint delay, checkpoint frequency and checkpoint strategies ALL and BEST
+- Hyperparameter Sweeper with GridSearch and RandomSearch
 
 ## Setup ##
 
@@ -20,10 +20,6 @@ We use poetry to manage the python environment and manage dependencies.
 Hence, a list of python dependencies can be found in `pyproject.toml`.
 Since we had trouble installing Horovod with poetry, it must be installed manually for now.
 This is only temporary and must be fixed in the future.
-
-Except from the python dependencies we recommend to use cuda-11.3 and nccl-2.14.
-On the AppTek cluster installations for these can be found in /home/fschmidt/lib. 
-Before installing Horovod, the corresponding path variables must be set which is done in `/home/fschmidt/code/workflowManager/bash/setup_cuda.bash`.
 
 ### Install Poetry ####
 
