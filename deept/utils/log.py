@@ -55,23 +55,23 @@ def write_scores_dict_to_files(scores_dict, prefix=''):
 def print_summary(name, number, **kwargs):
     
     def pr_int(name, value):
-        length = len(name) + 2 + 4
+        length = len(name) + 2 + 6
         if value is not None:
             return f'{name}: {value:0>4}'
         else:
             return ''.center(length, ' ')
 
     def pr_float_precise(name, value):
-        length = len(name) + 2 + 10 + 6
+        length = len(name) + 10
         if value is not None:
             if value > 1e8:
                 value = float('inf')
-            return f'{name}: {value:8.6f}'.ljust(length, ' ')
+            return f'{name}: {value:4.4f}'.ljust(length, ' ')
         else:
             return ''.center(length, ' ')
 
     def pr_float(name, value):
-        length = len(name) + 2 + 8 + 2
+        length = len(name) + 8
         if value is not None:
             if value > 1e7:
                 value = float('inf')
@@ -128,8 +128,9 @@ class ScoreSummary:
     def update_latest_from_key_value(self, key, value):
         self.summaries[-1][key] = value
 
-    def log_latest(self, number):
-        write_scores_dict_to_files(self.summaries[-1], prefix=self.prefix)
+    def log_latest(self, number, write_to_file=True):
+        if write_to_file:
+            write_scores_dict_to_files(self.summaries[-1], prefix=self.prefix)
         print_summary(self.prefix, number, **self.summaries[-1])
 
     def get_summary_of_best(self, best_key, reduce_fn):

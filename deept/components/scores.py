@@ -102,7 +102,8 @@ class ScoreAccummulator:
         else:
             value = self.value
 
-        assert L > 0., """Something went wrong. Score accumulator has not accumulated any values.
+        assert L > 0., f"""Something went wrong with {self.name}.
+            Score accumulator has not accumulated any values.
             If you have registered accumulators in your score (something you need to do),
             you need to increase it within the __call__ of your score."""
 

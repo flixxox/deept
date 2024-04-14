@@ -31,6 +31,8 @@ class Trainer:
 
         self.train_summary = ScoreSummary(prefix='train')
         self.eval_summary = ScoreSummary(prefix='eval')
+        if self.print_per_step_summary:
+            self.step_summary = ScoreSummary(prefix='step')
 
         if Trainer.is_ddp():
             self.model_input_keys = self.model.module.input_keys
@@ -184,8 +186,14 @@ class Trainer:
                     p_names = search_name_of_parameter(self.model, p)
                     raise RuntimeError(f'Detected NoneType gradient! Name {p_names}, Shape {p.shape}, {p}')
 
+        if hasattr(self.model, 'callback_optimizer_step_begin'):
+            self.model.callback_optimizer_step_begin()
+
         for opt in self.optimizers: opt.step()
         for scheduler in self.lr_schedulers: scheduler.step()
+
+        if hasattr(self.model, 'callback_optimizer_step_end'):
+            self.model.callback_optimizer_step_end()
     
     def train_ministep(self, data):
         
@@ -230,12 +238,18 @@ class Trainer:
                 score(output, *[data['tensors'].get(k) for k in score.input_keys])
 
     def print_step_summary(self):
-        score_summary = self.create_score_summary_dict()
-        score_summary['train_steps'] = self.checkpoint_manager.step_count-1
-        checkpoint_number = self.checkpoint_manager.get_checkpoint_number()
-        print_summary(True, checkpoint_number, **score_summary)
+        self.create_fill_checkpoint_summary(
+            self.step_summary,
+            self.checkpoint_manager.step_count-1,
+            'step',
+            reset=False
+        )
+        self.step_summary.log_latest(
+            self.checkpoint_manager.get_checkpoint_number(),
+            write_to_file=False
+        )
 
-    def create_fill_checkpoint_summary(self, summary, steps, prefix):
+    def create_fill_checkpoint_summary(self, summary, steps, prefix, reset=True):
 
         summary.push_new_summary()
 
@@ -250,7 +264,8 @@ class Trainer:
             steps
         )
 
-        self.reset_accumulators()
+        if reset:
+            self.reset_accumulators()
 
     def reset_accumulators(self):
         for criterion in self.criterions:
