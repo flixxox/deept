@@ -194,7 +194,7 @@ class Trainer:
 
         if hasattr(self.model, 'callback_optimizer_step_end'):
             self.model.callback_optimizer_step_end()
-    
+
     def train_ministep(self, data):
         
         for key, tensor in data['tensors'].items():
