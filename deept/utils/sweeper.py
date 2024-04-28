@@ -209,8 +209,8 @@ class Sweeper:
             values = [summary[key] for summary in summaries]
             avg = sum(values) / len(values)
             var = sum([(avg-x)**2 for x in values])/len(values)
-            write_and_print('output_dir_root', 'sweep_summary', f'Avg {prefix} {key} so far: {value_to_str(avg):4.2f}')
-            write_and_print('output_dir_root', 'sweep_summary', f'Var {prefix} {key} so far: {value_to_str(var):4.2f}')
+            write_and_print('output_dir_root', 'sweep_summary', f'Avg {prefix} {key} so far: {value_to_str(avg)}')
+            write_and_print('output_dir_root', 'sweep_summary', f'Var {prefix} {key} so far: {value_to_str(var)}')
 
     def update_performance_sorted_list(self, result, sweep_config_as_string):
         this_best = result['eval'].get_best_value(self.best_indicator, self.reduce_fn)
