@@ -281,6 +281,9 @@ class Config:
 
         return Config(config)
 
+    def asdict(self):
+        return self.config
+
     def print_config(self):
 
         max_key_length = max([len(k) for k in self.config.keys()])

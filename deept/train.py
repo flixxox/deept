@@ -14,6 +14,7 @@ from deept.utils.config import (
 )
 from deept.utils.setup import (
     setup,
+    setup_wandb,
     setup_seeds,
     setup_directories,
     check_and_correct_requested_number_of_gpus
@@ -38,8 +39,8 @@ def parse_cli_arguments():
         help='This is usually specified in the config but can also be overwritten from the cli.')
     parser.add_argument('--experiment-name', type=str, required=False, default='deept-training',
         help='The name of the experiment this training runs in.')
-    parser.add_argument('--use-wandb', type=int, required=False, default=False,
-        help='Wheterh the training shall be logged with wandb.')
+    parser.add_argument('--use-wandb', type=int, required=False, default=None,
+        help='Whether the training shall be logged with wandb.')
 
     args = parser.parse_args()
 
@@ -81,6 +82,8 @@ def train(config):
 
     setup_directories(config)
     setup_seeds(config)
+    if Settings.use_wandb():
+        setup_wandb(config)
 
     config['update_freq'] = config['update_freq', 1] // Settings.get_number_of_workers()
     my_print(f'Scaled down update_freq to {config["update_freq"]}!')
@@ -138,6 +141,10 @@ def train(config):
 
     average_time_per_checkpoint_s = checkpoint_manager.checkpoint_duration_accum / checkpoint_manager.checkpoint_count
     my_print(f'Average time per checkpoint: {average_time_per_checkpoint_s:4.2f}s {average_time_per_checkpoint_s/60:4.2f}min')
+
+    if config['use_wandb', False]:
+        import wandb
+        wandb.run.finish()
 
     my_print('Done!')
 

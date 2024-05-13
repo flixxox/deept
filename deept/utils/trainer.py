@@ -178,13 +178,14 @@ class Trainer:
         write_number_to_file('L', int(L_accum.cpu().numpy()))
 
         for p in self.model.parameters():
-            if p.grad is not None:
-                if self.average_gradients:
-                    p.grad *= (self.num_workers/L_accum)
-            else:
-                if not self.allow_none_type_gradients:
-                    p_names = search_name_of_parameter(self.model, p)
-                    raise RuntimeError(f'Detected NoneType gradient! Name {p_names}, Shape {p.shape}, {p}')
+            if p.requires_grad:
+                if p.grad is not None:
+                    if self.average_gradients:
+                        p.grad *= (self.num_workers/L_accum)
+                else:
+                    if not self.allow_none_type_gradients:
+                        p_names = search_name_of_parameter(self.model, p)
+                        raise RuntimeError(f'Detected NoneType gradient! Name {p_names}, Shape {p.shape}, {p}')
 
         if hasattr(self.model, 'callback_optimizer_step_begin'):
             self.model.callback_optimizer_step_begin()

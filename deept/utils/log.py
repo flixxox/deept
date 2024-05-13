@@ -130,8 +130,10 @@ class ScoreSummary:
 
     def log_latest(self, number, write_to_file=True):
         if write_to_file:
-            write_scores_dict_to_files(self.summaries[-1], prefix=self.prefix)
-        print_summary(self.prefix, number, **self.summaries[-1])
+            write_scores_dict_to_files(self.get_latest(), prefix=self.prefix)
+        print_summary(self.prefix, number, **self.get_latest())
+        if Settings.use_wandb():
+            self.wandb_log_latest()
 
     def get_summary_of_best(self, best_key, reduce_fn):
         x = [summary[best_key] for summary in self.summaries]
@@ -144,3 +146,14 @@ class ScoreSummary:
 
     def get_latest(self):
         return self.summaries[-1]
+    
+    def wandb_log_latest(self):
+        import wandb
+        latest = self.get_latest()
+        to_log = {}
+        for k,v in latest.items():
+            if self.prefix not in k:
+                to_log[f'{self.prefix}_{k}'] = v
+            else:
+                to_log[k] = v
+        wandb.log(to_log)

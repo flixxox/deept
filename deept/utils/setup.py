@@ -92,6 +92,7 @@ def setup_settings(config, rank, world_size, train, time):
     Settings.set_number_of_workers(world_size)
     Settings.set_train_flag(train)
     Settings.set_time_flag(time)
+    Settings.set_use_wandb(config['use_wandb', False])
     if config['number_of_gpus'] < 1:
         my_print('Limiting to CPU!')
         Settings.set_cpu()
@@ -184,3 +185,14 @@ def setup_seeds(config):
     if Settings.is_gpu():
         torch.cuda.manual_seed(Settings.get_global_seed())
         torch.cuda.manual_seed_all(Settings.get_global_seed())
+
+def setup_wandb(config):
+    import wandb
+    wandb.init(
+        config=config.asdict(),
+        dir=Settings.get_dir('output_dir'),
+        job_type='train',
+        mode=config['wandb_mode', 'offline'],
+        project=config['wandb_project'],
+        name=config['experiment_name', None]
+    )

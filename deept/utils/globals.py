@@ -48,6 +48,7 @@ class Settings:
     __DEVICE    = None
     __SEED      = None
     __RANK      = None
+    __USE_WANDB = None
     __DIRS      = {}
 
     @staticmethod
@@ -144,3 +145,10 @@ class Settings:
     def has_dir(name):
         return name in Settings.__DIRS
 
+    @staticmethod
+    def set_use_wandb(value):
+        Settings.__USE_WANDB = value
+
+    @staticmethod
+    def use_wandb():
+        return Settings.__USE_WANDB
