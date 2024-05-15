@@ -1,6 +1,7 @@
 import math
 from contextlib import nullcontext
 
+import wandb
 import torch
 from torch import autocast
 from torch.cuda import amp
@@ -53,7 +54,9 @@ class Trainer:
             mixed_precision_training = config['mixed_precision_training', False],
             print_per_step_summary = config['print_per_step_summary', False],
             print_per_step_mem_usage = config['print_per_step_mem_usage', False],
-            average_gradients = config['average_gradients', True]
+            average_gradients = config['average_gradients', True],
+            wandb_log_grad_norms = config['wandb_log_grad_norms', False],
+            wandb_log_grad_norms_param_filter = config['wandb_log_grad_norms_param_filter', ''],
         )
 
         return trainer
@@ -186,6 +189,14 @@ class Trainer:
                     if not self.allow_none_type_gradients:
                         p_names = search_name_of_parameter(self.model, p)
                         raise RuntimeError(f'Detected NoneType gradient! Name {p_names}, Shape {p.shape}, {p}')
+
+        if self.wandb_log_grad_norms:
+            param_filter = self.wandb_log_grad_norms_param_filter
+            for name, p in self.model.named_parameters():
+                norm_dict = {}
+                if p.requires_grad and param_filter in name:
+                    norm_dict[name] = torch.linalg.norm(p.grad)
+                wandb.log(norm_dict)
 
         if hasattr(self.model, 'callback_optimizer_step_begin'):
             self.model.callback_optimizer_step_begin()
