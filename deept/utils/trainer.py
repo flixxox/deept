@@ -192,11 +192,14 @@ class Trainer:
 
         if self.wandb_log_grad_norms:
             param_filter = self.wandb_log_grad_norms_param_filter
+            norm_dict = {}
             for name, p in self.model.named_parameters():
-                norm_dict = {}
-                if p.requires_grad and param_filter in name:
+                if p.requires_grad and (param_filter in name or 'readout' in name):
                     norm_dict[name] = torch.linalg.norm(p.grad)
+            if len(norm_dict) > 0:
                 wandb.log(norm_dict)
+            else:
+                my_print('Warning! No matching parameter that can be logged to wandb!')
 
         if hasattr(self.model, 'callback_optimizer_step_begin'):
             self.model.callback_optimizer_step_begin()
