@@ -194,7 +194,7 @@ class Trainer:
             param_filter = self.wandb_log_grad_norms_param_filter
             norm_dict = {}
             for name, p in self.model.named_parameters():
-                if p.requires_grad and (param_filter in name or 'readout' in name):
+                if p.requires_grad and (param_filter in name):
                     norm_dict[name] = torch.linalg.norm(p.grad)
             if len(norm_dict) > 0:
                 wandb.log(norm_dict)
