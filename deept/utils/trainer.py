@@ -1,7 +1,6 @@
 import math
 from contextlib import nullcontext
 
-import wandb
 import torch
 from torch import autocast
 from torch.cuda import amp
@@ -39,6 +38,9 @@ class Trainer:
             self.model_input_keys = self.model.module.input_keys
         else:
             self.model_input_keys = self.model.input_keys
+
+        if self.wandb_log_grad_norms:
+            import wandb
 
     @staticmethod
     def create_trainer_from_config(config, train_dataloader, dev_dataloader, checkpoint_manager):
