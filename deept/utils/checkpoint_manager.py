@@ -15,6 +15,11 @@ class CheckpointManager:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+        if not hasattr(self, 'best_goal'):
+            self.best_goal = None
+        if not hasattr(self, 'resume_training'):
+            self.resume_training = None
+
         if self.best_goal is not None:
             if self.best_goal == 'min':
                 self.maximize = False
@@ -58,7 +63,9 @@ class CheckpointManager:
     def create_eval_checkpoint_manager_from_config(config):
 
         checkpoint_manager = CheckpointManager(
-            strict_loading = config['checkpoint_strict_loading', True] 
+            load_weights = config['load_weights', False],
+            load_weights_from = config['load_weights_from', ""],
+            strict_loading = config['checkpoint_strict_loading', True],
         )
 
         return checkpoint_manager
@@ -77,7 +84,13 @@ class CheckpointManager:
 
         my_print(f'Loading weights from {self.load_weights_from}!')
 
-        Context['model'].init_weights_from_checkpoint(self.load_weights_from)
+        if hasattr(Context['model'], 'init_weights_from_checkpoint'):
+            Context['model'].init_weights_from_checkpoint(self.load_weights_from)
+        else:
+            checkpoint = torch.load(self.load_weights_from, map_location=Settings.get_device())
+            Context['model'].load_state_dict(checkpoint['model'], 
+                strict=self.strict_loading
+            )
 
     def get_latest_checkpoint_path(self):
 
@@ -124,7 +137,6 @@ class CheckpointManager:
 
             for i, lr_scheduler in enumerate(Context['lr_schedulers']):
                 lr_scheduler.load_state_dict(checkpoint[f'lr_scheduler{i:02d}'])
-
 
     def save(self, score_summary):
 

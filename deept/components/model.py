@@ -15,8 +15,8 @@ def create_model_from_config(config):
     from deept.utils.debug import my_print
     model = __MODEL_DICT__[config['model']].create_from_config(config)
     check_model(model)
-    my_print(f'Initializing model weights!')
     if hasattr(model, 'init_weights'):
+        my_print(f'Initializing model weights!')
         model.init_weights()
     return model
 
