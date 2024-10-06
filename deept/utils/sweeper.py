@@ -152,9 +152,9 @@ class Sweeper:
         this_best = result['eval'].get_best_value(self.best_indicator, self.reduce_fn)
         self.performance_sorted_configs.append((this_best, sweep_config_as_string))
         self.performance_sorted_configs.sort(key=lambda x: x[0], reverse=True)
-        write_to_file('output_dir_root', 'performance_sorted_configs', '~~~~ NEW SWEEP ~~~~')
+        write_to_file('output_dir_root', 'performance_sorted_sweeps', '~~~~ NEW SWEEP ~~~~')
         for (metric, config) in self.performance_sorted_configs:
-            write_to_file('output_dir_root', 'performance_sorted_configs', f'{config}: {value_to_str(metric)}')
+            write_to_file('output_dir_root', 'performance_sorted_sweeps', f'{config}: {value_to_str(metric)}')
 
     def log_all_best_summaries(self):
         to_log = {}
