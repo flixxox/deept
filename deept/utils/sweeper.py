@@ -4,10 +4,12 @@ from os.path import join
 from copy import deepcopy
 
 from deept.utils.debug import my_print
+from deept.utils.globals import Settings
 from deept.utils.log import (
     value_to_str,
     write_to_file,
-    write_and_print
+    round_if_float,
+    write_dict_to_yaml
 )
 
 __SWEEPER_DICT__ = {}
@@ -90,9 +92,7 @@ class Sweeper:
             self.num_combinations *= len(self.parsed_sweep_parameters[name])
 
     def sweep(self):
-
         for i in range(min(self.max_count, self.num_combinations)):
-
             sweep_config = self.get_config(i)
             sweep_config_as_string = self.get_sweep_config_as_string(sweep_config)
 
@@ -104,17 +104,13 @@ class Sweeper:
             else:
                 my_print(f'Start sweep with: {sweep_config_as_string}')
                 self.call_sweep_fn_and_log(sweep_config, sweep_config_as_string)
+        
+        self.log_all_best_summaries()    
 
     def call_sweep_fn_and_log(self, sweep_config, sweep_config_as_string):
-
         config = self.merge_normal_and_sweep_config(sweep_config)
-
         result = self.function(config, *self.function_args)
-        
         self.results[sweep_config_as_string] = result
-
-        self.log_sweep_result(result, sweep_config_as_string)
-        self.log_average_so_far(sweep_config_as_string)
         self.update_performance_sorted_list(result, sweep_config_as_string)
         
     def get_sweep_config_as_string(self, sweep_config):
@@ -152,66 +148,6 @@ class Sweeper:
 
         return config
 
-    def log_sweep_result(self, result, sweep_config_as_string): 
-        
-        best_ckpt_nb_train, best_train_summary = result['train'].get_summary_of_best(
-            self.best_indicator,
-            self.reduce_fn
-        )
-
-        best_ckpt_nb_eval, best_eval_summary = result['eval'].get_summary_of_best(
-            self.best_indicator,
-            self.reduce_fn
-        )
-
-        write_and_print('output_dir_root', 'sweep_summary', f' ~~~~~~ [ {sweep_config_as_string} ] ~~~~~~ ')
-        write_and_print('output_dir_root', 'sweep_summary', f' ~~ [Train] Best Epoch {best_ckpt_nb_train}')
-
-        for k, v in best_train_summary.items():
-            write_and_print('output_dir_root', 'sweep_summary', f' Best train {k}: {value_to_str(v)}')
-
-        write_and_print('output_dir_root', 'sweep_summary', f' ~~ [Eval] Best Epoch {best_ckpt_nb_eval}')
-
-        for k, v in best_eval_summary.items():
-            write_and_print('output_dir_root', 'sweep_summary', f' Best eval {k}: {value_to_str(v)}')
-
-    def log_average_so_far(self, sweep_config_as_string):
-
-        best_train_summaries, best_eval_summaries = self.get_best_summary_per_result()
-        
-        write_and_print('output_dir_root', 'sweep_summary', f' ~~ [Running AVG Train]')
-        self.log_average_values_from_a_summary_list(best_train_summaries, 'train')
-
-        write_and_print('output_dir_root', 'sweep_summary', f' ~~ [Running AVG Eval]')
-        self.log_average_values_from_a_summary_list(best_eval_summaries, 'eval')
-
-    def get_best_summary_per_result(self):
-        best_train_summaries = []
-        best_eval_summaries = []
-        for result in self.results.values():
-
-            _, best_train_summary = result['train'].get_summary_of_best(
-                self.best_indicator,
-                self.reduce_fn
-            )
-            _, best_eval_summary = result['eval'].get_summary_of_best(
-                self.best_indicator,
-                self.reduce_fn
-            )
-
-            best_train_summaries.append(best_train_summary)
-            best_eval_summaries.append(best_eval_summary)
-
-        return best_train_summaries, best_eval_summaries
-
-    def log_average_values_from_a_summary_list(self, summaries, prefix):
-        for key in summaries[0].keys():
-            values = [summary[key] for summary in summaries]
-            avg = sum(values) / len(values)
-            var = sum([(avg-x)**2 for x in values])/len(values)
-            write_and_print('output_dir_root', 'sweep_summary', f'Avg {prefix} {key} so far: {value_to_str(avg)}')
-            write_and_print('output_dir_root', 'sweep_summary', f'Var {prefix} {key} so far: {value_to_str(var)}')
-
     def update_performance_sorted_list(self, result, sweep_config_as_string):
         this_best = result['eval'].get_best_value(self.best_indicator, self.reduce_fn)
         self.performance_sorted_configs.append((this_best, sweep_config_as_string))
@@ -219,6 +155,26 @@ class Sweeper:
         write_to_file('output_dir_root', 'performance_sorted_configs', '~~~~ NEW SWEEP ~~~~')
         for (metric, config) in self.performance_sorted_configs:
             write_to_file('output_dir_root', 'performance_sorted_configs', f'{config}: {value_to_str(metric)}')
+
+    def log_all_best_summaries(self):
+        to_log = {}
+        for sweep_str, summary_managers in self.results.items():
+            best_ckpt_idx, best_eval_summary = summary_managers['eval'].get_summary_of_best()
+            best_train_summary = summary_managers['train'].get_by_index(best_ckpt_idx)
+            to_log[sweep_str] = {}
+            to_log[sweep_str]['train'] = {}
+            to_log[sweep_str]['eval'] = {}
+            to_log[sweep_str]['best_ckpt'] = best_ckpt_idx+1
+            
+            for k, v in best_train_summary.items():
+                to_log[sweep_str]['train'][k] = round_if_float(v)
+            
+            for k, v in best_eval_summary.items():
+                to_log[sweep_str]['eval'][k] = round_if_float(v)
+        
+        output_dir = Settings.get_dir('output_dir_root')
+        output_dir = join(output_dir, f'sweep_summary.yaml')
+        write_dict_to_yaml(output_dir, to_log)
 
 
 @register_sweeper('grid')

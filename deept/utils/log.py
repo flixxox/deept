@@ -4,6 +4,7 @@ import torch
 
 from deept.utils.debug import my_print
 from deept.utils.globals import Settings
+from deept.components.scores import Score
 
 
 def int_to_str(value):
@@ -32,6 +33,11 @@ def value_to_str(v, no_precise=False):
             v = float_to_str(v)
         else:
             v = float_to_str_precise(v)
+    return v
+
+def round_if_float(v):
+    if isinstance(v, float):
+        return round(v, 4)
     return v
 
 def write_to_file(dir, filename, string):
@@ -111,49 +117,98 @@ def print_summary(name, number, **kwargs):
 
     my_print(to_print)
 
+def write_dict_to_yaml(file_path, to_log):
+    import hiyapyco
+    with open(file_path, 'w') as file:
+        file.write(hiyapyco.dump(to_log))
 
-class ScoreSummary:
 
-    def __init__(self, prefix=''):
+class Summary:
+
+    def __init__(self, prefix):
         self.prefix = prefix
-        self.summaries = []
+        self.__summary = {} 
 
-    def push_new_summary(self):
-        self.summaries.append({})
+    def update_from_score(self, score):
+        assert isinstance(score, Score)
+        update = score.get_reduced_accumulator_values()
+        self.__summary.update(update)
 
-    def update_latest_from_score(self, score):
-        values = score.get_reduced_accumulator_values()
-        self.summaries[-1].update(values)
+    def update_from_key_value(self, key, value):
+        self.__summary[key] = value
 
-    def update_latest_from_key_value(self, key, value):
-        self.summaries[-1][key] = value
+    def get_value(self, key):
+        return self.__summary[key]
 
-    def log_latest(self, number, write_to_file=True):
+    def items(self):
+        return self.__summary.items()
+
+    def log(self, number, write_to_file):
         if write_to_file:
-            write_scores_dict_to_files(self.get_latest(), prefix=self.prefix)
-        print_summary(self.prefix, number, **self.get_latest())
+            write_scores_dict_to_files(self.__summary, prefix=self.prefix)
+        print_summary(self.prefix, number, **self.__summary)
         if Settings.use_wandb():
-            self.wandb_log_latest()
+            self.wandb_log()
 
-    def get_summary_of_best(self, best_key, reduce_fn):
-        x = [summary[best_key] for summary in self.summaries]
-        best = reduce_fn(x)
-        best_index = x.index(best)
-        return best_index, self.summaries[best_index]
-
-    def get_best_value(self, best_key, reduce_fn):
-        return reduce_fn([summary[best_key] for summary in self.summaries])
-
-    def get_latest(self):
-        return self.summaries[-1]
-    
-    def wandb_log_latest(self):
+    def wandb_log(self):
         import wandb
-        latest = self.get_latest()
         to_log = {}
-        for k,v in latest.items():
+        for k,v in self.__summary.items():
             if self.prefix not in k:
                 to_log[f'{self.prefix}_{k}'] = v
             else:
                 to_log[k] = v
         wandb.log(to_log)
+
+    def log_to_yaml(self, output_file_path, best_ckpt_id):
+        to_log = {}
+        to_log['best_ckpt'] = best_ckpt_id
+        for k, v in self.__summary.items():
+            to_log[k] = round_if_float(v)
+        write_dict_to_yaml(output_file_path, to_log)
+
+class SummaryManager:
+
+    def __init__(self,
+        best_indicator=None,
+        reduce_fn=None,
+        prefix=''
+    ):
+        self.best_ind = best_indicator
+        self.reduce_fn = reduce_fn
+        self.prefix = prefix
+        self.summaries = []
+
+    def push_new_summary(self):
+        self.summaries.append(Summary(self.prefix))
+
+    def update_latest_from_score(self, score):
+        self.get_latest().update_from_score(score)
+
+    def update_latest_from_key_value(self, key, value):
+        self.get_latest().update_from_key_value(key, value)
+
+    def log_latest(self, write_to_file=True):
+        self.get_latest().log(len(self.summaries), write_to_file)
+
+    def get_summary_of_best(self):
+        x = [summary.get_value(self.best_ind) for summary in self.summaries]
+        best = self.reduce_fn(x)
+        best_ckpt_idx = x.index(best)
+        return best_ckpt_idx, self.summaries[best_ckpt_idx]
+
+    def get_best_value(self, best_key, reduce_fn):
+        return reduce_fn([summary.get_value(best_key) for summary in self.summaries])
+
+    def get_latest(self):
+        return self.summaries[-1]
+
+    def get_by_index(self, idx):
+        return self.summaries[idx]
+
+    def log_best_to_yaml(self):
+        from os.path import join
+        best_ckpt_idx, summary_of_best = self.get_summary_of_best()
+        output_dir = Settings.get_dir('output_dir')
+        output_dir = join(output_dir, f'best_{self.prefix}.yaml')
+        summary_of_best.log_to_yaml(output_dir, best_ckpt_idx+1)

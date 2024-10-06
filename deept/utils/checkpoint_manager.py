@@ -10,8 +10,7 @@ from deept.utils.globals import Settings, Context
 
 class CheckpointManager:
 
-    def __init__(self, **kwargs):
-        
+    def __init__(self, **kwargs):      
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -38,7 +37,6 @@ class CheckpointManager:
 
     @staticmethod
     def create_train_checkpoint_manager_from_config(config):
-
         checkpoint_manager = CheckpointManager(
             checkpoint_dir = Settings.get_dir('checkpoint_dir'),
             checkpoint_period = config['checkpoint_period'],
@@ -56,18 +54,15 @@ class CheckpointManager:
             load_weights_from = config['load_weights_from', ""],
             strict_loading = config['checkpoint_strict_loading', True] 
         )
-
         return checkpoint_manager
 
     @staticmethod
     def create_eval_checkpoint_manager_from_config(config):
-
         checkpoint_manager = CheckpointManager(
             load_weights = config['load_weights', False],
             load_weights_from = config['load_weights_from', ""],
             strict_loading = config['checkpoint_strict_loading', True],
         )
-
         return checkpoint_manager
 
 
@@ -139,12 +134,11 @@ class CheckpointManager:
                 lr_scheduler.load_state_dict(checkpoint[f'lr_scheduler{i:02d}'])
 
     def save(self, score_summary):
-
         if Settings.rank() == 0:
 
             self.save_last()
             
-            cur_score = score_summary[self.best_indicator]
+            cur_score = score_summary.get_value(self.best_indicator)
 
             if self.__is_better(cur_score):
                 self.save_best()
@@ -153,7 +147,7 @@ class CheckpointManager:
             else:
                 self.ckpts_since_best += 1
 
-            if self.checkpoint_strategy == 'All' and self.ready_to_checkpoint():
+            if self.checkpoint_strategy == 'All' and self.ready_for_checkpoint():
                 self.save_numbered()
 
         self.checkpoint_count += 1
@@ -224,13 +218,12 @@ class CheckpointManager:
         if not self.do_early_abort:
             return False
 
-        if self.ckpts_since_best >= self.checkpoints_till_abort and self.ready_to_checkpoint():
+        if self.ckpts_since_best >= self.checkpoints_till_abort and self.ready_for_checkpoint():
             return True
         else:
             return False
 
-    def ready_to_checkpoint(self):
-
+    def ready_for_checkpoint(self):
         if self.checkpoint_unit == 'Step':
             unit = self.step_count
         else:
@@ -241,11 +234,15 @@ class CheckpointManager:
         else:
             return True
 
+    def ckpt_strategy_to_reduce_fn(self):
+        if self.maximize:
+            return max
+        else:
+            return min
 
     def do_checkpoint_after_step(self):
-
         if self.do_checkpoints:
-            
+
             if self.checkpoint_unit == 'Step':
 
                 if self.step_count % self.checkpoint_period == 0:
@@ -257,7 +254,6 @@ class CheckpointManager:
         return False
 
     def do_checkpoint_after_epoch(self):
-
         if self.do_checkpoints:
             
             if self.checkpoint_unit == 'Epoch':

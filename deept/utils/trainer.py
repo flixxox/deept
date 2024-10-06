@@ -7,7 +7,7 @@ from torch.cuda import amp
 import torch.distributed as dist
 
 from deept.utils.globals import Settings, Context
-from deept.utils.log import ScoreSummary, write_number_to_file
+from deept.utils.log import SummaryManager, write_number_to_file
 from deept.utils.debug import (
     my_print,
     print_memory_usage,
@@ -29,10 +29,20 @@ class Trainer:
         self.lr_schedulers = Context['lr_schedulers']
         self.scores = Context['scores']
 
-        self.train_summary = ScoreSummary(prefix='train')
-        self.eval_summary = ScoreSummary(prefix='eval')
+        reduce_fn = self.checkpoint_manager.ckpt_strategy_to_reduce_fn()
+
+        self.train_summary_manger = SummaryManager(
+            best_indicator=self.best_indicator,
+            reduce_fn=reduce_fn,
+            prefix='train'
+        )
+        self.eval_summary_manger = SummaryManager(
+            best_indicator=self.best_indicator,
+            reduce_fn=reduce_fn,
+            prefix='eval'
+        )
         if self.print_per_step_summary:
-            self.step_summary = ScoreSummary(prefix='step')
+            self.step_summary_manger = SummaryManager(prefix='step')
 
         if Trainer.is_ddp():
             self.model_input_keys = self.model.module.input_keys
@@ -44,13 +54,13 @@ class Trainer:
 
     @staticmethod
     def create_trainer_from_config(config, train_dataloader, dev_dataloader, checkpoint_manager):
-
         trainer = Trainer(
             train_dataloader = train_dataloader,
             dev_dataloader = dev_dataloader,
             checkpoint_manager = checkpoint_manager,
             num_workers = Settings.get_number_of_workers(),
             update_freq = config['update_freq'],
+            best_indicator = config['best_checkpoint_indicator'],
             allow_none_type_gradients = config['allow_none_type_gradients', False],
             deterministic = config['deterministic', False],
             mixed_precision_training = config['mixed_precision_training', False],
@@ -68,7 +78,6 @@ class Trainer:
         return Settings.get_number_of_workers() > 1
 
     def train(self):
-
         self.model.train()
         self.model.zero_grad(set_to_none=True)
 
@@ -97,7 +106,7 @@ class Trainer:
                     self.do_checkpoint()
 
                     if not self.checkpoint_manager.keep_going():
-                        return
+                        break
 
             for scheduler in self.lr_schedulers: scheduler.epoch()
 
@@ -109,22 +118,24 @@ class Trainer:
             if self.checkpoint_manager.do_checkpoint_after_epoch():
                 self.do_checkpoint()
 
+        self.train_summary_manger.log_best_to_yaml()
+        self.eval_summary_manger.log_best_to_yaml()
+
         return {
-            'train': self.train_summary,
-            'eval': self.eval_summary
+            'train': self.train_summary_manger,
+            'eval': self.eval_summary_manger
         }
     
     def do_checkpoint(self):
-
         time_passed_s = self.checkpoint_manager.timer_end()
 
         self.create_fill_checkpoint_summary(
-            self.train_summary,
+            self.train_summary_manger,
             self.checkpoint_manager.step_count-1,
             'train'
         )
         
-        self.train_summary.log_latest(
+        self.train_summary_manger.log_latest(
             self.checkpoint_manager.get_checkpoint_number()
         )
 
@@ -133,12 +144,11 @@ class Trainer:
         print_memory_usage()
         my_print(f'Training checkpoint took: {time_passed_s:4.2f}s, {time_passed_s / 60:4.2f}min')
 
-        self.checkpoint_manager.save(self.eval_summary.get_latest())
+        self.checkpoint_manager.save(self.eval_summary_manger.get_latest())
 
         self.checkpoint_manager.timer_start()
 
     def eval(self):
-
         self.model.eval()
 
         if hasattr(self.model, 'test_start_callback'):
@@ -153,19 +163,18 @@ class Trainer:
             self.model.test_end_callback()
 
         self.create_fill_checkpoint_summary(
-            self.eval_summary,
+            self.eval_summary_manger,
             steps,
             'eval'
         )
 
-        self.eval_summary.log_latest(
+        self.eval_summary_manger.log_latest(
             self.checkpoint_manager.get_checkpoint_number()
         )
 
         self.model.train()
 
     def train_step(self, data):
-
         for opt in self.optimizers: opt.zero_grad(set_to_none=True)
 
         L_accum = torch.tensor([0.], requires_grad=False, device=Settings.get_device())
@@ -213,7 +222,6 @@ class Trainer:
             self.model.callback_optimizer_step_end()
 
     def train_ministep(self, data):
-        
         for key, tensor in data['tensors'].items():
             data['tensors'][key] = tensor.to(Settings.get_device())
 
@@ -242,7 +250,6 @@ class Trainer:
         return L
 
     def eval_step(self, data):
-        
         for key, tensor in data['tensors'].items():
             data['tensors'][key] = tensor.to(Settings.get_device())
 
@@ -256,18 +263,17 @@ class Trainer:
 
     def print_step_summary(self):
         self.create_fill_checkpoint_summary(
-            self.step_summary,
+            self.step_summary_manger,
             self.checkpoint_manager.step_count-1,
             'step',
             reset=False
         )
-        self.step_summary.log_latest(
+        self.step_summary_manger.log_latest(
             self.checkpoint_manager.get_checkpoint_number(),
             write_to_file=False
         )
 
     def create_fill_checkpoint_summary(self, summary, steps, prefix, reset=True):
-
         summary.push_new_summary()
 
         for criterion in self.criterions:

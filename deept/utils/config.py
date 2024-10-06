@@ -262,12 +262,10 @@ class DeepTConfigDescription:
 class Config:
 
     def __init__(self, config):
-
         self.config = config
 
     @staticmethod
     def parse_config(args):
-
         with open(args['config'], 'r') as f:    
             config = yaml.safe_load(f)
         

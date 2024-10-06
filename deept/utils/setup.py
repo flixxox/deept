@@ -40,7 +40,6 @@ def setup(config, rank, world_size,
         setup_ddp(config)
 
 def import_user_code(paths_to_user_code):
-
     import sys
     import importlib
     from os import listdir
@@ -101,7 +100,6 @@ def setup_settings(config, rank, world_size, train, time):
         Settings.set_device(f'cuda:{Settings.rank()}')
 
 def setup_directories(config):
-
     def __maybe_create_dir(dir):
         from os import mkdir
         if not isdir(dir):
@@ -138,7 +136,6 @@ def setup_directories(config):
                 Expected to have the directory {Settings.get_dir('search_dir')}"""
 
 def setup_torch(config):
-    
     if config['deterministic', False]:
         torch.use_deterministic_algorithms(True)
 
@@ -164,7 +161,6 @@ def setup_cuda(config):
         torch.backends.cudnn.deterministic = True
 
 def setup_ddp(config):
-
     import os
     import torch.distributed as dist
 

@@ -123,7 +123,7 @@ class Score(nn.Module):
         self.input_keys = input_keys
         self.reduce_type = reduce_type
 
-        self.sub_scores = [] # Other Score objects
+        self.sub_scores = []
         self.accumulators = []
             
     def register_accumulator(self, name):
@@ -133,16 +133,9 @@ class Score(nn.Module):
         self.sub_scores.append(score)
 
     def get_reduced_accumulator_values(self):
-
         values = {}
-
-        for sub_score in self.sub_scores:
-            sub_score_values = self.reduce_score(sub_score)
-            values.update(sub_score_values)
-
         for accumulator in self.accumulators:
             values[accumulator.name] = self.reduce_score(accumulator)
-
         return values
     
     def reduce_score(self, score):
@@ -187,7 +180,6 @@ class CrossEntropy(Score):
 
     @staticmethod
     def create_from_config(config, input_keys, reduce_type):
-
         from deept.utils.globals import Context
 
         if Context.has_context('pad_index'):
@@ -203,7 +195,6 @@ class CrossEntropy(Score):
         )
 
     def __call__(self, output, targets):
-        
         ce = self.loss_fn(output, targets)
 
         if self.pad_index is None:
@@ -217,10 +208,10 @@ class CrossEntropy(Score):
 
     def get_reduced_accumulator_values(self):
         """Overwrite the get_average_accumulator_values function to also calculate ppl."""
-        scores = super(CrossEntropy, self).get_reduced_accumulator_values()
+        values = super(CrossEntropy, self).get_reduced_accumulator_values()
         if self.calculate_ppl:
-            scores['ppl'] = self.__calculate_ppl(scores['ce'])
-        return scores
+            values['ppl'] = self.__calculate_ppl(values['ce'])
+        return values
 
     def __calculate_ppl(self, ce):
         import math

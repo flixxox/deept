@@ -75,7 +75,6 @@ def setup_and_train(rank, config, world_size):
     train(config)
 
 def train(config):
-
     Context.reset()
 
     config.print_config()
@@ -198,7 +197,6 @@ def create_checkpoint_manager(config):
     return checkpoint_manager
 
 def send_to_device():
-
     from deept.utils.globals import Context, Settings
 
     scores = []
@@ -217,7 +215,6 @@ def send_to_device():
 
 
 if __name__ == '__main__':
-
     my_print(
 """>>=========================================================<<
 ||                                                         ||
