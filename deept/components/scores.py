@@ -168,11 +168,8 @@ class CrossEntropy(Score):
         self.calculate_ppl = calculate_ppl
         self.label_smoothing = label_smoothing
 
-        if pad_index is None:
-            ignore_index = -100
-
         self.loss_fn = nn.CrossEntropyLoss(
-            ignore_index=ignore_index,
+            ignore_index=pad_index,
             label_smoothing=label_smoothing
         )
 
@@ -185,7 +182,7 @@ class CrossEntropy(Score):
         if Context.has_context('pad_index'):
             pad_index = Context['pad_index']
         else:
-            pad_index = None
+            pad_index = -100
         
         return CrossEntropy(
             input_keys, reduce_type,
@@ -200,7 +197,7 @@ class CrossEntropy(Score):
         if self.pad_index is None:
             numel = targets.numel()
         else:
-            numel = (output != self.pad_index).sum()
+            numel = (targets != self.pad_index).sum()
 
         self.accumulators[0].increase(ce, numel)
 

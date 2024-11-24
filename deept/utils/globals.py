@@ -14,8 +14,9 @@ class Context:
 
     @staticmethod
     def print_all_context_elements():
+        from deept.utils.debug import my_print
         for k, v in Context.__CONTEXT.items():
-            print(k, v)
+            my_print(k, v)
 
     @staticmethod
     def has_context(key):
