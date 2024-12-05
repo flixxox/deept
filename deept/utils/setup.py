@@ -159,6 +159,10 @@ def setup_cuda(config):
     torch.cuda.set_device(Settings.get_device())
     if config['deterministic', False]:
         torch.backends.cudnn.deterministic = True
+    if config['disable_cudnn', False]: 
+        torch.backends.cudnn.enabled = False
+    if config['disable_cudnn_benchmark_mode', False]:
+        torch.backends.cudnn.benchmark = False
 
 def setup_ddp(config):
     import os
@@ -175,12 +179,15 @@ def setup_ddp(config):
     ) # Uses nccl for gpu and gloo for cpu communication
 
 def setup_seeds(config):
+    import random
     Settings.set_global_seed(config['seed', 0])
-    np.random.seed(Settings.get_global_seed())
-    torch.manual_seed(Settings.get_global_seed())
+    seed = Settings.get_global_seed()
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
     if Settings.is_gpu():
-        torch.cuda.manual_seed(Settings.get_global_seed())
-        torch.cuda.manual_seed_all(Settings.get_global_seed())
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
 
 def setup_wandb(config):
     import wandb
