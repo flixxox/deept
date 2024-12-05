@@ -108,7 +108,7 @@ class Sweeper:
         self.log_all_best_summaries()    
 
     def call_sweep_fn_and_log(self, sweep_config, sweep_config_as_string):
-        config = self.merge_normal_and_sweep_config(sweep_config)
+        config = self.merge_normal_and_sweep_config(sweep_config, sweep_config_as_string)
         result = self.function(config, *self.function_args)
         self.results[sweep_config_as_string] = result
         self.update_performance_sorted_list(result, sweep_config_as_string)
@@ -132,7 +132,7 @@ class Sweeper:
                 return False
         return True
 
-    def merge_normal_and_sweep_config(self, sweep_config):
+    def merge_normal_and_sweep_config(self, sweep_config, sweep_config_as_string):
         config = deepcopy(self.normal_config)
 
         output_folder_for_run = ''
@@ -145,6 +145,7 @@ class Sweeper:
         
         config['output_folder_root'] = config['output_folder']
         config['output_folder'] = join(config['output_folder'], output_folder_for_run)
+        config['experiment_name'] =  f'{config["experiment_name"]}-{sweep_config_as_string}'
 
         return config
 
