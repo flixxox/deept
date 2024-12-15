@@ -273,19 +273,21 @@ class Trainer:
             write_to_file=False
         )
 
-    def create_fill_checkpoint_summary(self, summary, steps, prefix, reset=True):
-        summary.push_new_summary()
+    def create_fill_checkpoint_summary(self, summary_manager, steps, prefix, reset=True):
+        summary_manager.push_new_summary()
 
         for criterion in self.criterions:
-            summary.update_latest_from_score(criterion)
+            summary_manager.update_latest_from_score(criterion)
 
         for score in self.scores:
-            summary.update_latest_from_score(score)
+            summary_manager.update_latest_from_score(score)
 
-        summary.update_latest_from_key_value(
+        summary_manager.update_latest_from_key_value(
             f'{prefix}_steps',
             steps
         )
+
+        summary_manager.write_best_so_far_to_latest()
 
         if reset:
             self.reset_accumulators()

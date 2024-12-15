@@ -212,3 +212,7 @@ class SummaryManager:
         output_dir = Settings.get_dir('output_dir')
         output_dir = join(output_dir, f'best_{self.prefix}.yaml')
         summary_of_best.log_to_yaml(output_dir, best_ckpt_idx+1)
+
+    def write_best_so_far_to_latest(self):
+        best_score = self.get_best_value(self.best_ind, self.reduce_fn)
+        self.summaries[-1].update_from_key_value('best_score', best_score)

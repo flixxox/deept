@@ -76,7 +76,6 @@ class CheckpointManager:
         self.restore(self.get_latest_checkpoint_path())
     
     def load_weights_from_checkpoint(self):
-
         my_print(f'Loading weights from {self.load_weights_from}!')
 
         if hasattr(Context['model'], 'init_weights_from_checkpoint'):
@@ -88,7 +87,6 @@ class CheckpointManager:
             )
 
     def get_latest_checkpoint_path(self):
-
         maybe_last_checkpoint_path = join(self.checkpoint_dir, f'ckpt-last.pt')
 
         if isfile(maybe_last_checkpoint_path):
@@ -111,7 +109,6 @@ class CheckpointManager:
         return join(self.checkpoint_dir, f'ckpt-{max_number}.pt')
 
     def restore(self, path):
-
         my_print(f'Loading weights from {path}!')
 
         checkpoint = torch.load(path, map_location=Settings.get_device())
@@ -165,7 +162,6 @@ class CheckpointManager:
         self.__save(join(self.checkpoint_dir, f'ckpt-best.pt'))
 
     def __save(self, path):
-
         from torch.nn.parallel import DistributedDataParallel as DDP
 
         model = Context['model']
@@ -200,7 +196,6 @@ class CheckpointManager:
             return cur_score < self.best_score
 
     def keep_going(self):
-
         if self.checkpoint_unit == 'Step':
             unit = self.step_count
         elif self.checkpoint_unit == 'Epoch':
@@ -214,7 +209,6 @@ class CheckpointManager:
             return False
 
     def early_abort(self):
-        
         if not self.do_early_abort:
             return False
 
@@ -278,7 +272,6 @@ class CheckpointManager:
         return checkpoint_duration_s
 
     def average_last_N_checkpoints(self, N):
-
         if Settings.rank() == 0:
 
             assert N > 1
@@ -291,7 +284,6 @@ class CheckpointManager:
             self.average_checkpoints(checkpoint_paths, suffix='avg-last')
 
     def average_N_after_best_checkpoint(self, N):
-
         if Settings.rank() == 0:
         
             assert N > 1
@@ -309,7 +301,6 @@ class CheckpointManager:
             self.average_checkpoints(checkpoint_paths, suffix='avg-best')
 
     def average_checkpoints(self, checkpoint_paths, suffix='avg'):
-
         state_dict = None
 
         for path in checkpoint_paths:
