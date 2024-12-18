@@ -1,6 +1,7 @@
 import math
 from contextlib import nullcontext
 
+import wandb
 import torch
 from torch import autocast
 from torch.cuda import amp
@@ -84,6 +85,11 @@ class Trainer:
         self.checkpoint_manager.timer_start()
 
         while self.checkpoint_manager.keep_going():
+
+            if hasattr(self.model, 'train_epoch_start_callback'):
+                self.model.train_epoch_start_callback(
+                    self.checkpoint_manager.epoch_count
+                )
 
             for data in self.train_dataloader:
 
