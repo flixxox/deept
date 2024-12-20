@@ -212,7 +212,8 @@ class Trainer:
             norm_dict = {}
             for name, p in self.model.named_parameters():
                 if p.requires_grad and (param_filter in name):
-                    norm_dict[name] = torch.linalg.norm(p.grad)
+                    if p.grad is not None:
+                        norm_dict[name] = torch.linalg.norm(p.grad)
             if len(norm_dict) > 0:
                 wandb.log(norm_dict)
             else:
