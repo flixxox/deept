@@ -7,9 +7,7 @@ from deept.components.lr_scheduler import create_lr_scheduler_from_config
 __OPTIMIZER_DICT__ = {}
 
 def create_optimizers_and_lr_schedulers_from_config(config, model):
-
     def __create_optimizer_and_lr_scheduler(optimizer_config, param_groups):
-
         param_groups_config = optimizer_config['param_groups']
         lr_scheduler_config = Config(optimizer_config['lr_scheduler'])
 
@@ -78,7 +76,6 @@ class Adam:
         return torch.optim.Adam(
             [{
                 'params': group['params'],
-                'lr': group['init_lr'],
                 'weight_decay': group['weight_decay'],
             } for group in param_groups_config]
         )
