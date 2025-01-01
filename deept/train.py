@@ -7,7 +7,7 @@ import torch
 from deept.utils.trainer import Trainer
 from deept.utils.globals import Settings, Context
 from deept.utils.debug import my_print, print_memory_usage
-from deept.utils.sweeper import create_sweeper_from_config
+from deept.sweep import Sweeper, create_sweep_strategy_from_config
 from deept.utils.config import (
     Config,
     DeepTConfigDescription
@@ -65,7 +65,7 @@ def start(config):
     else:
         if config['do_sweep', False]:
             setup(config, 0, 1, train=True, time=False)
-            sweeper = create_sweeper_from_config(config, train, ())
+            sweeper = create_sweeper(config)
             sweeper.sweep()
         else:
             setup_and_train(0, config, 1)
@@ -77,7 +77,7 @@ def setup_and_train(rank, config, world_size):
 def train(config):
     Context.reset()
 
-    config.print_config()
+    config.print()
 
     setup_directories(config)
     setup_seeds(config)
@@ -149,6 +149,10 @@ def train(config):
 
     return result
 
+def create_sweeper(config):
+    from deept.sweep import create_sweeper_from_config
+    return create_sweeper_from_config(config, train, ())
+
 def create_dataloader(config):
     from deept.data.dataset import create_dataset_from_config
     from deept.data.dataloader import create_dataloader_from_config
@@ -175,9 +179,7 @@ def create_scores(config, key):
     from deept.components.scores import create_score_from_config
     scores = []
     for score_config in config[key]:
-        if not isinstance(score_config, dict):
-            raise ValueError(f'Got unexpected criterion type. Got {type(score_config)}!')
-        score = create_score_from_config(Config(score_config), config)
+        score = create_score_from_config(score_config, config)
         scores.append(score)
     my_print(f'Created {key}: {scores}!')
     return scores
@@ -236,7 +238,7 @@ if __name__ == '__main__':
 
     args = parse_cli_arguments()
 
-    config = Config.parse_config(args)
+    config = Config.parse_config_from_args(args)
 
     if config['resume_training']:
         config['output_folder'] = config['resume_training_from']

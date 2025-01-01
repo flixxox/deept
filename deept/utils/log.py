@@ -143,6 +143,12 @@ class Summary:
     def items(self):
         return self.__summary.items()
 
+    def keys(self):
+        return self.__summary.keys()
+
+    def values(self):
+        return self.__summary.values()
+
     def log(self, number, write_to_file):
         if write_to_file:
             write_scores_dict_to_files(self.__summary, prefix=self.prefix)

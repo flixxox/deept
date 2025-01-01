@@ -68,7 +68,7 @@ class Trainer:
             print_per_step_summary = config['print_per_step_summary', False],
             print_per_step_mem_usage = config['print_per_step_mem_usage', False],
             average_gradients = config['average_gradients', True],
-            wandb_log_grad_norms = config['wandb_log_grad_norms', False],
+            wandb_log_grad_norms = (config['wandb_log_grad_norms', False] and Settings.use_wandb()),
             wandb_log_grad_norms_param_filter = config['wandb_log_grad_norms_param_filter', ''],
         )
 

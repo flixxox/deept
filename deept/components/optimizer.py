@@ -9,7 +9,7 @@ __OPTIMIZER_DICT__ = {}
 def create_optimizers_and_lr_schedulers_from_config(config, model):
     def __create_optimizer_and_lr_scheduler(optimizer_config, param_groups):
         param_groups_config = optimizer_config['param_groups']
-        lr_scheduler_config = Config(optimizer_config['lr_scheduler'])
+        lr_scheduler_config = optimizer_config['lr_scheduler']
 
         if (not isinstance(param_groups_config, list)
                 or len(param_groups_config) < 1):
@@ -48,7 +48,7 @@ def create_optimizers_and_lr_schedulers_from_config(config, model):
         param_groups = {'all': model.parameters()}
     
     for optimizer_config in optimizer_configs:
-        optimizer, lr_scheduler = __create_optimizer_and_lr_scheduler(Config(optimizer_config), param_groups)
+        optimizer, lr_scheduler = __create_optimizer_and_lr_scheduler(optimizer_config, param_groups)
         optimizers.append(optimizer)
         lr_schedulers.append(lr_scheduler)
 

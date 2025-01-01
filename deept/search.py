@@ -121,8 +121,8 @@ if __name__ == '__main__':
 
     args = parse_cli_arguments()
 
-    config = Config.parse_config(args)
+    config = Config.parse_config_from_args(args)
 
-    config.print_config()
+    config.print()
 
     search(config)
