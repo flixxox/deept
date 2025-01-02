@@ -26,6 +26,7 @@ def create_sweeper_from_config(config, sweep_fn, sweep_fn_args):
         max_count = config['sweep_configuration/count'],
         constraints = config['sweep_configuration/constraints', None],
         sweep_parameters = config['sweep_configuration/parameters'],
+        seeds_to_try = config['sweep_configuration/repeat_for_seeds', []],
         do_multi_sweep = do_multi_sweep,
         sweep_folder_root = sweep_folder_root,
         sweep_name = sweep_name,

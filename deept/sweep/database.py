@@ -44,8 +44,6 @@ class SweepDatabase:
             'remove_from_hash'
         ] + self.remove_from_hash
 
-        print('Exclude', self.remove_from_hash)
-
         sweep_folder = join(self.sweep_folder_root, self.sweep_name)
         if self.hash_config:
             config_hash = self.normal_config.hash(

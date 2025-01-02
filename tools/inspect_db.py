@@ -48,7 +48,7 @@ my_print("""+=================================================+
 |  \___/   \_/ \___| _|    \_/ _| \___|  \_/\_/   |
 +=================================================+""")
 
-res = cur.execute('SELECT run_ident, status, started_at, finished_at, run_id FROM runs')
+res = cur.execute('SELECT run_ident, status, started_at, finished_at, run_id FROM runs WHERE status="DONE"')
 res = res.fetchall()
 names = [description[0] for description in cur.description]
 
@@ -68,7 +68,7 @@ my_print("""+======================================+
 |  _|_\ \___| ___/ \_,_| _| \__| ___/  |
 +======================================+""")
 
-res = cur.execute('SELECT * FROM run_results')
+res = cur.execute('SELECT * FROM run_results ORDER BY eval_acc DESC')
 res = res.fetchall()
 names = [description[0] for description in cur.description]
 

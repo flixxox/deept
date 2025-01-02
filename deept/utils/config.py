@@ -386,12 +386,11 @@ class Config:
     def print(self):
         lines = self.get_print_string(indent=0)
         max_k = max([len(line[0]) for line in lines])
-        max_v = max([len(line[1]) for line in lines])
         for line in lines:
             if '[' in line[0] and ']' in line[0]:
                 my_print(line[0])
             else: 
-                my_print(line[0].ljust(max_k, '-'), line[1].ljust(max_v, '.'))
+                my_print(line[0].ljust(max_k, '-'), line[1])
      
     def get_print_string(self, indent=0):
         key_prefix = ''.join(['-' for _ in range(indent)])

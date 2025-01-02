@@ -140,6 +140,9 @@ class Summary:
     def get_value(self, key):
         return self.__summary[key]
 
+    def asdict(self):
+        return self.__summary
+
     def items(self):
         return self.__summary.items()
 

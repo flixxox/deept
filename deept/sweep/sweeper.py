@@ -49,6 +49,8 @@ class Sweeper:
         else:
             raise ValueError(f'Did not regonize the goal of the best score. Got: {self.best_goal}!')
 
+        self.do_repeat_for_seeds = len(self.seeds_to_try) > 0
+
         self.__parse_sweep_parameters()
         self.sweep_strat.parse_sweep_parameters(self.param_options)
 
@@ -126,18 +128,63 @@ class Sweeper:
             return False
         return True
 
-    def call_sweep_fn_and_log(self, sweep_config, run_ident):
-        config = self.merge_normal_and_run_config(sweep_config, run_ident)
-        result = self.function(config, *self.function_args)
+    def call_sweep_fn_and_log(self, run_config, run_ident):
+        if self.do_repeat_for_seeds:
+            result = self.call_for_every_seed(run_config, run_ident)
+        else:
+            result = self.call_normal(run_config, run_ident)
         self.results[run_ident] = result
         self.update_performance_sorted_list(result, run_ident)
 
-    def fulfills_constraints(self, sweep_config):
+    def call_for_every_seed(self, run_config, run_ident):
+        def __sum(avg_result, result):
+            for k, v in result['train'].items():
+                avg_result['train'][k] += v
+            for k, v in result['eval'].items():
+                avg_result['eval'][k] += v
+            avg_result['best_ckpt'] += result['best_ckpt']
+            return avg_result
+
+        def __avg(avg_result, denom):
+            for k in avg_result['train'].keys():
+                avg_result['train'][k] /= denom
+            for k in avg_result['eval'].keys():
+                avg_result['eval'][k] /= denom
+            avg_result['best_ckpt'] /= denom
+            return avg_result
+
+        run_config['seed'] = self.seeds_to_try[0]
+        my_print(f'Sweeper: Run for seed {self.seeds_to_try[0]}!')
+        avg_result = self.call_normal(run_config, run_ident)
+        
+        for seed in self.seeds_to_try[1:]:
+            my_print(f'Sweeper: Run for seed {seed}!')
+            run_config['seed'] = seed
+            result = self.call_normal(run_config, run_ident)
+            avg_result = __sum(avg_result, result)
+
+        avg_result = __avg(avg_result, len(self.seeds_to_try))
+
+        return avg_result
+
+    def call_normal(self, run_config, run_ident):
+        config = self.merge_normal_and_run_config(run_config, run_ident)
+        summary_managers = self.function(config, *self.function_args)
+
+        best_ckpt_idx, best_eval_summary = summary_managers['eval'].get_summary_of_best()
+        best_train_summary = summary_managers['train'].get_by_index(best_ckpt_idx)
+        return {
+            'train': best_train_summary.asdict(),
+            'eval': best_eval_summary.asdict(),
+            'best_ckpt': best_ckpt_idx
+        }
+
+    def fulfills_constraints(self, run_config):
         if self.constraints is None:
             return True
         for c in self.constraints:
             for p in self.sorted_parameter_names:
-                c = c.replace(p, str(sweep_config[p]))
+                c = c.replace(p, str(run_config[p]))
             r = eval(c)
             if not r:
                 return False
@@ -147,8 +194,7 @@ class Sweeper:
         config = deepcopy(self.normal_config)
 
         output_folder_for_run = ''
-        for k in config['sweep_configuration']['parameters'].keys():
-            v = run_config[k]
+        for k, v in run_config.items():
             config[k] = v
             v = value_to_str(v, no_precise=True)
             output_folder_for_run = f'{output_folder_for_run}__{k}_{v}'
@@ -161,7 +207,7 @@ class Sweeper:
         return config
 
     def update_performance_sorted_list(self, result, run_ident):
-        this_best = result['eval'].get_best_value(self.best_indicator, self.reduce_fn)
+        this_best = result['eval'][self.best_indicator]
         self.performance_sorted_configs.append((this_best, run_ident))
         self.performance_sorted_configs.sort(key=lambda x: x[0], reverse=True)
         write_to_file('output_dir_root', 'performance_sorted_sweeps', '~~~~ NEW SWEEP ~~~~')
@@ -170,18 +216,17 @@ class Sweeper:
 
     def log_all_best_summaries(self):
         to_log = {}
-        for sweep_str, summary_managers in self.results.items():
-            best_ckpt_idx, best_eval_summary = summary_managers['eval'].get_summary_of_best()
-            best_train_summary = summary_managers['train'].get_by_index(best_ckpt_idx)
+        for sweep_str, result in self.results.items():
+            best_ckpt = result['best_ckpt']
             to_log[sweep_str] = {}
             to_log[sweep_str]['train'] = {}
             to_log[sweep_str]['eval'] = {}
-            to_log[sweep_str]['best_ckpt'] = best_ckpt_idx+1
+            to_log[sweep_str]['best_ckpt'] = best_ckpt+1
             
-            for k, v in best_train_summary.items():
+            for k, v in result['train'].items():
                 to_log[sweep_str]['train'][k] = round_if_float(v)
             
-            for k, v in best_eval_summary.items():
+            for k, v in result['eval'].items():
                 to_log[sweep_str]['eval'][k] = round_if_float(v)
         
         output_dir = Settings.get_dir('output_dir_root')

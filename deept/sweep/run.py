@@ -28,14 +28,8 @@ class SweepRun:
     def has_result(self):
         return self.__has_result
     
-    def set_result(self, summary_managers):
-        best_ckpt_idx, best_eval_summary = summary_managers['eval'].get_summary_of_best()
-        best_train_summary = summary_managers['train'].get_by_index(best_ckpt_idx)
-        
-        self.result = {
-            'train': best_train_summary,
-            'eval': best_eval_summary
-        }
+    def set_result(self, result):
+        self.result = result
         self.__has_result = True
 
     def get_result(self):
