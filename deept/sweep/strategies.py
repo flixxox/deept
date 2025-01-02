@@ -1,4 +1,4 @@
-
+import random
 
 __SWEEP_STRATEGY_DICT__ = {}
 
@@ -83,11 +83,17 @@ class RandomSweepStrategy(GridSweepStrategy):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.draw_from = list(range(self.num_combinations))
 
     @staticmethod
     def create_from_config(config):
         return RandomSweepStrategy()
+
+    def parse_sweep_parameters(self, param_options):
+        super().parse_sweep_parameters(param_options)
+        num_combinations = 1
+        for options in param_options.values():
+            num_combinations *= len(options)
+        self.draw_from = list(range(num_combinations))
 
     def get_config(self, iteration):
         idx = random.choice(self.draw_from)

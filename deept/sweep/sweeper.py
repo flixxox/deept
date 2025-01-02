@@ -1,5 +1,3 @@
-
-import random
 import numpy as np
 from os.path import join
 from copy import deepcopy
@@ -57,8 +55,9 @@ class Sweeper:
         self.sorted_parameter_names = [k for k in self.param_options.keys()]
         self.sorted_parameter_names.sort(key=len, reverse=True)
 
-        self.__create_database()
-        self.database.connect()
+        if self.do_multi_sweep:
+            self.__create_database()
+            self.database.connect()
 
         self.results = {}
         self.performance_sorted_configs = []
@@ -104,10 +103,15 @@ class Sweeper:
 
             if self.is_valid(run):
                 config = self.merge_normal_and_run_config(run_config, run.ident)
-                self.database.mark_running(run)
+                
+                if self.do_multi_sweep:
+                    self.database.mark_running(run)
+                
                 self.call_sweep_fn_and_log(run_config, run.ident)
-                run.set_result(self.results[run.ident])
-                self.database.mark_done(run)
+                
+                if self.do_multi_sweep:
+                    run.set_result(self.results[run.ident])
+                    self.database.mark_done(run)
             else:
                 my_print(f'Skip {run.ident}!')
 
@@ -117,7 +121,7 @@ class Sweeper:
     def is_valid(self, run):
         if not self.fulfills_constraints(run.config):
             return False
-        if self.database.is_already_running_or_done(run):
+        if self.do_multi_sweep and self.database.is_already_running_or_done(run):
             return False
         return True
 
