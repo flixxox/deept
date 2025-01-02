@@ -14,12 +14,14 @@ class SweepDatabase:
         sweep_folder_root,
         sweep_name,
         hash_config,
-        cleanup_after
+        cleanup_after,
+        remove_from_hash
     ):
         self.normal_config = normal_config
         self.sweep_folder_root = sweep_folder_root
         self.sweep_name = sweep_name
         self.hash_config = hash_config
+        self.remove_from_hash = remove_from_hash
         self.cleanup_after = cleanup_after
         self.already_scheduled_runs = []
 
@@ -38,8 +40,11 @@ class SweepDatabase:
             'user_code',
             'resume_training',
             'resume_training_from',
-            'use_wandb'
-        ]
+            'use_wandb',
+            'remove_from_hash'
+        ] + self.remove_from_hash
+
+        print('Exclude', self.remove_from_hash)
 
         sweep_folder = join(self.sweep_folder_root, self.sweep_name)
         if self.hash_config:

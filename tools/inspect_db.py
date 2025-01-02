@@ -41,21 +41,6 @@ my_print(f'Db file: {db_file}')
 con = sqlite3.connect(db_file)
 cur = con.cursor()
 
-
-# ASCII Art: Small shadow, plus box v2, 10pt
-my_print("""+===================================================================+
-|    __|                                       _ _|         _|      |
-|  \__ \ \ \  \ /  -_)   -_)  _ \   -_)   _|     |     \    _| _ \  |
-|  ____/  \_/\_/ \___| \___| .__/ \___| _|     ___| _| _| _| \___/  |
-|                           _|                                      |
-+===================================================================+""")
-
-res = cur.execute('SELECT * FROM sweeperinfo')
-res = res.fetchall()
-names = [description[0] for description in cur.description]
-
-print_results(res, names)
-
 # ASCII Art: Small shadow, plus box v2, 10pt
 my_print("""+=================================================+
 |    _ \                       _)                 |
@@ -63,7 +48,7 @@ my_print("""+=================================================+
 |  \___/   \_/ \___| _|    \_/ _| \___|  \_/\_/   |
 +=================================================+""")
 
-res = cur.execute('SELECT run_ident, status, started_at, finished_at FROM runs')
+res = cur.execute('SELECT run_ident, status, started_at, finished_at, run_id FROM runs')
 res = res.fetchall()
 names = [description[0] for description in cur.description]
 
@@ -83,7 +68,7 @@ my_print("""+======================================+
 |  _|_\ \___| ___/ \_,_| _| \__| ___/  |
 +======================================+""")
 
-res = cur.execute('SELECT * FROM results')
+res = cur.execute('SELECT * FROM run_results')
 res = res.fetchall()
 names = [description[0] for description in cur.description]
 

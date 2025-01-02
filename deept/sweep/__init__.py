@@ -15,6 +15,7 @@ def create_sweeper_from_config(config, sweep_fn, sweep_fn_args):
         hash_config = config['sweep_configuration/multi_sweep/hash_config', True]
         cleanup_after = config['sweep_configuration/multi_sweep/cleanup_after', 12]
         sweep_folder_root = config['sweep_configuration/multi_sweep/sweep_folder_root']
+        remove_from_hash = config['sweep_configuration/multi_sweep/remove_from_hash', []]
 
     sweeper = Sweeper(
         config, sweep_strat, sweep_fn, sweep_fn_args,
@@ -29,7 +30,8 @@ def create_sweeper_from_config(config, sweep_fn, sweep_fn_args):
         sweep_folder_root = sweep_folder_root,
         sweep_name = sweep_name,
         hash_config = hash_config,
-        cleanup_after = cleanup_after
+        cleanup_after = cleanup_after,
+        remove_from_hash = remove_from_hash
     )
 
     return sweeper

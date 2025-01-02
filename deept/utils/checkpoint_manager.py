@@ -28,7 +28,8 @@ class CheckpointManager:
                 raise ValueError(f'Did not regonize the goal of the best score. Got: {self.best_goal}!')
         
         self.best_score = None
-        self.ckpts_since_best = 0
+        self.early_abort_best_score = None
+        self.early_abort_count = 0
         self.step_count = 1 # The current step. Increased after do_checkpoint_after_step()
         self.epoch_count = 1 # The current epoch. Increased after do_checkpoint_after_epoch()
         self.checkpoint_count = 1 # The current checkpoint number. Increased after save()
@@ -47,12 +48,13 @@ class CheckpointManager:
             checkpoint_strategy = config['checkpoint_strategy', 'All'],
             do_early_abort = config['early_abort', False],
             checkpoints_till_abort = config['checkpoints_till_abort', 0],
+            early_abort_threshold = config['early_abort_threshold', 0],
             checkpoint_start_after = config['checkpoint_start_after', 0],
             best_indicator = config['best_checkpoint_indicator'],
             best_goal = config['best_checkpoint_indicator_goal'],
             load_weights = config['load_weights', False],
             load_weights_from = config['load_weights_from', ""],
-            strict_loading = config['checkpoint_strict_loading', True] 
+            strict_loading = config['checkpoint_strict_loading', True],
         )
         return checkpoint_manager
 
@@ -117,7 +119,8 @@ class CheckpointManager:
             strict=self.strict_loading
         )
         self.best_score = checkpoint['best_score']
-        self.ckpts_since_best = checkpoint['ckpts_since_best']
+        self.early_abort_best_score = checkpoint['early_abort_best_score']
+        self.early_abort_count = checkpoint['early_abort_count']
         self.step_count = checkpoint['step_count']
         self.epoch_count = checkpoint['epoch_count']
         self.checkpoint_count = checkpoint['checkpoint_count']+1
@@ -132,7 +135,6 @@ class CheckpointManager:
 
     def save(self, score_summary):
         if Settings.rank() == 0:
-
             self.save_last()
             
             cur_score = score_summary.get_value(self.best_indicator)
@@ -140,9 +142,12 @@ class CheckpointManager:
             if self.__is_better(cur_score):
                 self.save_best()
                 self.best_score = cur_score
-                self.ckpts_since_best = 0
+
+            if self.__early_abort_is_better(cur_score):
+                self.early_abort_count = 0
+                self.early_abort_best_score = cur_score
             else:
-                self.ckpts_since_best += 1
+                self.early_abort_count += 1
 
             if self.checkpoint_strategy == 'All' and self.ready_for_checkpoint():
                 self.save_numbered()
@@ -172,7 +177,8 @@ class CheckpointManager:
         to_save = {
             'model': model.state_dict(),
             'best_score': self.best_score,
-            'ckpts_since_best': self.ckpts_since_best,
+            'early_abort_best_score': self.early_abort_best_score,
+            'early_abort_count': self.early_abort_count,
             'step_count': self.step_count,
             'epoch_count': self.epoch_count,
             'checkpoint_count': self.checkpoint_count,
@@ -194,6 +200,14 @@ class CheckpointManager:
             return cur_score > self.best_score
         else:
             return cur_score < self.best_score
+    
+    def __early_abort_is_better(self, cur_score):
+        if self.early_abort_best_score is None:
+            return True
+        if self.maximize:
+            return cur_score > self.early_abort_best_score + self.early_abort_threshold
+        else:
+            return cur_score + self.early_abort_threshold < self.early_abort_best_score
 
     def keep_going(self):
         if self.checkpoint_unit == 'Step':
@@ -212,7 +226,8 @@ class CheckpointManager:
         if not self.do_early_abort:
             return False
 
-        if self.ckpts_since_best >= self.checkpoints_till_abort and self.ready_for_checkpoint():
+        if self.early_abort_count >= self.checkpoints_till_abort and self.ready_for_checkpoint():
+            my_print('Early aborting!')
             return True
         else:
             return False
@@ -236,11 +251,8 @@ class CheckpointManager:
 
     def do_checkpoint_after_step(self):
         if self.do_checkpoints:
-
             if self.checkpoint_unit == 'Step':
-
                 if self.step_count % self.checkpoint_period == 0:
-
                     self.step_count += 1
                     return True
 
@@ -248,12 +260,9 @@ class CheckpointManager:
         return False
 
     def do_checkpoint_after_epoch(self):
-        if self.do_checkpoints:
-            
+        if self.do_checkpoints:   
             if self.checkpoint_unit == 'Epoch':
-
                 if self.epoch_count % self.checkpoint_period == 0:
-
                     self.epoch_count += 1
                     return True
 
@@ -289,7 +298,7 @@ class CheckpointManager:
             assert N > 1
             assert self.checkpoint_count > 1
             
-            best_checkpoint = self.checkpoint_count - self.ckpts_since_best - 1
+            best_checkpoint = self.checkpoint_count - self.early_abort_count - 1
 
             min_ckpt = max(best_checkpoint, 1)
             max_ckpt = min(best_checkpoint+N, self.checkpoint_count)
@@ -325,7 +334,8 @@ class CheckpointManager:
         torch.save({
             'model': state_dict,
             'best_score': 0.,
-            'ckpts_since_best': 0,
+            'early_abort_best_score': 0.,
+            'early_abort_count': 0,
             'step_count': 0,
             'epoch_count': 0,
             'checkpoint_count': 0,

@@ -93,7 +93,8 @@ class Sweeper:
             self.sweep_folder_root,
             sweep_name,
             self.hash_config,
-            self.cleanup_after
+            self.cleanup_after,
+            self.remove_from_hash
         )
 
     def sweep(self):

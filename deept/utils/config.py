@@ -541,7 +541,7 @@ class Config:
     def asdict(self, exclude=[]):
         def __parse_entry(v):
             if isinstance(v, Config):
-                return v.asdict()
+                return v.asdict(exclude=exclude)
             if isinstance(v, list):
                 res = []
                 for elem in v:
