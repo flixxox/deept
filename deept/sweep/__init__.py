@@ -8,6 +8,7 @@ def create_sweeper_from_config(config, sweep_fn, sweep_fn_args):
     sweep_name = None
     hash_config = None
     cleanup_after = None
+    remove_from_hash = None
     sweep_folder_root = None
     if do_multi_sweep:
         config['sweep_configuration'].assert_has_key('multi_sweep')

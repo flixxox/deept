@@ -103,7 +103,7 @@ class Sweeper:
         for i in range(min(self.max_count, self.num_combinations)):
             run_config = self.sweep_strat.get_config(i)
             run = SweepRun(run_config)
-
+            
             if self.is_valid(run):
                 config = self.merge_normal_and_run_config(run_config, run.ident)
                 
@@ -115,16 +115,16 @@ class Sweeper:
                 if self.do_multi_sweep:
                     run.set_result(self.results[run.ident])
                     self.database.mark_done(run)
-            else:
-                my_print(f'Skip {run.ident}!')
 
         self.log_all_best_summaries()
         self.database.disconnect()
 
     def is_valid(self, run):
         if not self.fulfills_constraints(run.config):
+            my_print(f'Skip {run.ident}! Constraints not met.')
             return False
         if self.do_multi_sweep and self.database.is_already_running_or_done(run):
+            my_print(f'Skip {run.ident}! Already tried.')
             return False
         return True
 

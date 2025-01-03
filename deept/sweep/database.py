@@ -41,7 +41,8 @@ class SweepDatabase:
             'resume_training',
             'resume_training_from',
             'use_wandb',
-            'remove_from_hash'
+            'remove_from_hash',
+            'number_of_gpus'
         ] + self.remove_from_hash
 
         sweep_folder = join(self.sweep_folder_root, self.sweep_name)

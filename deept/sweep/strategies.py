@@ -89,14 +89,10 @@ class RandomSweepStrategy(GridSweepStrategy):
         return RandomSweepStrategy()
 
     def parse_sweep_parameters(self, param_options):
-        super().parse_sweep_parameters(param_options)
-        num_combinations = 1
-        for options in param_options.values():
-            num_combinations *= len(options)
-        self.draw_from = list(range(num_combinations))
+        self.param_options = param_options
 
     def get_config(self, iteration):
-        idx = random.choice(self.draw_from)
-        self.draw_from.remove(idx)
-        sweep_config = super().get_config(idx)
-        return sweep_config
+        config = {}
+        for name, values in self.param_options.items():
+            config[name] = random.choice(values)
+        return config
