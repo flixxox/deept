@@ -362,12 +362,21 @@ class Config:
             return os.path.join(self.root_dir, path)
 
     def parse_ref_paths(self):
-        for key, item in self.config.items():
+        def __parse_item_rec(item):
             if isinstance(item, str) and item.startswith('<ref>'):
-                self.config[key] = self.__parse_ref_path(item)
+                return self.__parse_ref_path(item)
             elif isinstance(item, Config):
                 item.parse_ref_paths()
+            elif isinstance(item, list):
+                ret = []
+                for entry in item:
+                    ret.append(__parse_item_rec(entry))
+                return ret
+            return item
 
+        for key, item in self.config.items():
+            self.config[key] = __parse_item_rec(item)
+                
     def __parse_ref_path(self, item):
         path = self.__prepare_ref_path(item)
         result = self.__get_item_from_path(remove_from_start('<ref>', item))

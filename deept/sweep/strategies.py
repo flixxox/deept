@@ -12,11 +12,11 @@ def register_sweep_strategy(name):
     return register_sweeper_fn
 
 def create_sweep_strategy_from_config(config):
-    sweeper = config['sweep_configuration']['method']
-    if sweeper in __SWEEP_STRATEGY_DICT__:
-        return __SWEEP_STRATEGY_DICT__[sweeper].create_from_config(config)
+    sweep_strat = config['sweep_configuration']['method']
+    if sweep_strat in __SWEEP_STRATEGY_DICT__:
+        return __SWEEP_STRATEGY_DICT__[sweep_strat].create_from_config(config)
     else:
-        raise ValueError(f'Error! Unrecognized sweeper {sweeper}!')
+        raise ValueError(f'Error! Unrecognized sweep_strategy {sweep_strat}!')
 
 
 class SweepStrategy:

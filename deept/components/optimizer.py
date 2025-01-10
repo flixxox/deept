@@ -36,7 +36,7 @@ def create_optimizers_and_lr_schedulers_from_config(config, model):
     lr_schedulers = []
     optimizer_configs = config['optimizers']
 
-    if isinstance(optimizer_configs, dict):
+    if isinstance(optimizer_configs, Config):
         optimizer_configs = [optimizer_configs]
 
     if not isinstance(optimizer_configs, list):

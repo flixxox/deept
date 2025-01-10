@@ -117,7 +117,8 @@ class Sweeper:
                     self.database.mark_done(run)
 
         self.log_all_best_summaries()
-        self.database.disconnect()
+        if self.do_multi_sweep:
+            self.database.disconnect()
 
     def is_valid(self, run):
         if not self.fulfills_constraints(run.config):
