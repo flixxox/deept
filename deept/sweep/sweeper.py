@@ -110,6 +110,8 @@ class Sweeper:
                 if self.do_multi_sweep:
                     self.database.mark_running(run)
                 
+                my_print(f'Sweeper: Runing {run.ident}!')
+
                 self.call_sweep_fn_and_log(run_config, run.ident)
                 
                 if self.do_multi_sweep:

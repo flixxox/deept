@@ -20,7 +20,7 @@ class SweepRun:
     def config_as_string(self):
         as_string = ''
         for k, v in self.config.items():
-            v = value_to_str(v, no_precise=True)
+            v = value_to_str(v, no_precise=False)
             as_string = f'{as_string}__{k}_{v}'
         as_string = as_string[2:]
         return as_string 

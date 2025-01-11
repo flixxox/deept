@@ -18,7 +18,7 @@ def float_to_str(value):
 def float_to_str_precise(value):
     if value > 1e8:
         value = float('inf')
-    return f'{value:8.6f}'
+    return str(value)
 
 def tensor_to_float(value):
     return value.cpu().detach().numpy()

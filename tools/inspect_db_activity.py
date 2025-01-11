@@ -41,15 +41,17 @@ my_print(f'Db file: {db_file}')
 con = sqlite3.connect(db_file)
 cur = con.cursor()
 
-# my_print('~~~~~ Sweeper Info ~~~~~')
+my_print('~~~~~ Sweeper Info ~~~~~')
 
-# res = cur.execute('SELECT * FROM sweeperinfo')
-# res = res.fetchall()
-# names = [description[0] for description in cur.description]
+res = cur.execute('SELECT * FROM sweeperinfo')
+res = res.fetchall()
+names = [description[0] for description in cur.description]
+
+print_results(res, names)
 
 my_print('~~~~~ Overview ~~~~~')
 
-res = cur.execute('SELECT run_ident, status, started_at, finished_at, run_id FROM runs')
+res = cur.execute('SELECT run_ident, status, started_at, finished_at, run_id FROM runs ORDER BY run_id DESC')
 res = res.fetchall()
 names = [description[0] for description in cur.description]
 
