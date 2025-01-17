@@ -307,17 +307,20 @@ class Config:
 
         return Config('/', config, None, get_root_dir(path))
 
+    @staticmethod
+    def parse_config_from_dict(raw_config, root_dir):
+        assert raw_config is not None, 'Provided config seems to be empty' 
+
+        return Config('/', raw_config, None, root_dir)
+
     def __init__(self, path, config_dict, parent_config, root_dir):
         self.path = path
         self.parent_config = parent_config
         self.root_dir = root_dir
 
         # First, parse everything except the ref paths.
-        # Parsing the ref paths is then initiated by
-        # the root config
+        # Parsing the ref paths then happens on the fly
         self.config = self.parse_except_ref(config_dict)
-        if parent_config is None:
-            self.parse_ref_paths()
 
     # Initial Parsing
 
@@ -376,19 +379,13 @@ class Config:
 
         for key, item in self.config.items():
             self.config[key] = __parse_item_rec(item)
-                
-    def __parse_ref_path(self, item):
+
+    def __parse_ref_path(self, item, throw=False):
         path = self.__prepare_ref_path(item)
         result = self.__get_item_from_path(remove_from_start('<ref>', item))
-        if result is None:
+        if throw and result is None:
             raise ValueError(f'Could not parse reference "{item}" from location "{self.path}"')
         return result
-
-    def __prepare_ref_path(self, path):
-        path = remove_from_start('<ref>', path)
-        path = remove_from_start('/', path)
-        path = remove_from_end('/', path)
-        return path
 
     # Main
 
@@ -458,6 +455,10 @@ class Config:
         
         item = self.__get_item_from_path(key)
 
+        if isinstance(item, str) and item.startswith('<ref>'):
+            path = self.__prepare_ref_path(item)
+            item = self.__get_item_from_path(path)
+
         if item is None:
             if with_default:
                 return default
@@ -470,7 +471,7 @@ class Config:
         if path.startswith('../'):
             path = remove_from_start('../', path)
             return self.parent_config.__get_item_from_path(path)
-        
+
         cur = path.split('/')[0]
         list_index = None
         if cur.endswith(']'):
@@ -492,7 +493,13 @@ class Config:
                 if isinstance(item, Config):
                     path = remove_from_start(f'{cur}/', path)
                     return item.__get_item_from_path(path)
-        return None 
+        return None
+
+    def __prepare_ref_path(self, path):
+        path = remove_from_start('<ref>', path)
+        path = remove_from_start('/', path)
+        path = remove_from_end('/', path)
+        return path
 
     def __get_item(self, key):
         self.assert_has_key(key)
@@ -558,7 +565,7 @@ class Config:
             return v
 
         config_dict = {}
-        for k, v in self.config.items():
+        for k, v in self.items():
             if not k in exclude:
                 config_dict[k] = __parse_entry(v)
         return config_dict
@@ -569,7 +576,7 @@ class Config:
 
     def items(self):
         for k, v in self.config.items():
-            yield k, self.__get_item(k)
+            yield k, self.__getitem__(k)
 
     def keys(self):
         return self.config.keys()

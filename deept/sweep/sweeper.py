@@ -6,6 +6,7 @@ from deept.sweep.run import SweepRun
 from deept.utils.debug import my_print
 from deept.utils.globals import Settings
 from deept.sweep.database import SweepDatabase
+from deept.utils.config import Config, read_yaml, get_root_dir
 from deept.utils.log import (
     value_to_str,
     write_to_file,
@@ -25,7 +26,6 @@ class Sweeper:
         best_goal,
         **kwargs
     ):
-        
         self.normal_config = normal_config
         self.sweep_strat = sweep_strat
         self.function = function
@@ -105,8 +105,6 @@ class Sweeper:
             run = SweepRun(run_config)
             
             if self.is_valid(run):
-                config = self.merge_normal_and_run_config(run_config, run.ident)
-                
                 if self.do_multi_sweep:
                     self.database.mark_running(run)
                 
@@ -140,35 +138,52 @@ class Sweeper:
         self.update_performance_sorted_list(result, run_ident)
 
     def call_for_every_seed(self, run_config, run_ident):
-        def __sum(avg_result, result):
+        def __store_in(result, result_storage):
             for k, v in result['train'].items():
-                avg_result['train'][k] += v
+                result_storage['train'][k].append(v)
+
             for k, v in result['eval'].items():
-                avg_result['eval'][k] += v
-            avg_result['best_ckpt'] += result['best_ckpt']
-            return avg_result
+                result_storage['eval'][k].append(v)
 
-        def __avg(avg_result, denom):
-            for k in avg_result['train'].keys():
-                avg_result['train'][k] /= denom
-            for k in avg_result['eval'].keys():
-                avg_result['eval'][k] /= denom
-            avg_result['best_ckpt'] /= denom
-            return avg_result
+            result_storage['best_ckpt'].append(result['best_ckpt'])
 
-        run_config['seed'] = self.seeds_to_try[0]
-        my_print(f'Sweeper: Run for seed {self.seeds_to_try[0]}!')
-        avg_result = self.call_normal(run_config, run_ident)
+            return result_storage
+
+        def __avg_and_std(result_storage):
+            result = {'train': {}, 'eval': {}}
+            for k, v in result_storage['train'].items():
+                result['train'][k] = float(np.mean(v))
+                result['train'][f'{k}_std'] = float(np.std(v))
+
+            for k, v in result_storage['eval'].items():
+                result['eval'][k] = float(np.mean(v))
+                result['eval'][f'{k}_std'] = float(np.std(v))
+
+            result['best_ckpt'] = float(np.mean(result_storage['best_ckpt']))
+            
+            return result
+
+        seed = self.seeds_to_try[0]
+        run_config['seed'] = seed
+        my_print(f'Sweeper: Run for seed {seed}!')
+        result = self.call_normal(run_config, f'{run_ident}__seed_{seed}')
+
+        result_storage = {'train': {}, 'eval': {}}
+        for k, v in result['train'].items():
+            result_storage['train'][k] = [v]
+        for k, v in result['eval'].items():
+            result_storage['eval'][k] = [v]
+        result_storage['best_ckpt'] = [result['best_ckpt']]
         
         for seed in self.seeds_to_try[1:]:
             my_print(f'Sweeper: Run for seed {seed}!')
             run_config['seed'] = seed
-            result = self.call_normal(run_config, run_ident)
-            avg_result = __sum(avg_result, result)
+            result = self.call_normal(run_config, f'{run_ident}__seed_{seed}')
+            result_storage = __store_in(result, result_storage)
 
-        avg_result = __avg(avg_result, len(self.seeds_to_try))
+        result = __avg_and_std(result_storage)
 
-        return avg_result
+        return result
 
     def call_normal(self, run_config, run_ident):
         config = self.merge_normal_and_run_config(run_config, run_ident)
@@ -196,15 +211,11 @@ class Sweeper:
     def merge_normal_and_run_config(self, run_config, run_ident):
         config = deepcopy(self.normal_config)
 
-        output_folder_for_run = ''
         for k, v in run_config.items():
             config[k] = v
-            v = value_to_str(v, no_precise=True)
-            output_folder_for_run = f'{output_folder_for_run}__{k}_{v}'
-        output_folder_for_run = output_folder_for_run[2:]
         
         config['output_folder_root'] = config['output_folder']
-        config['output_folder'] = join(config['output_folder'], output_folder_for_run)
+        config['output_folder'] = join(config['output_folder'], run_ident)
         config['experiment_name'] =  f'{config["experiment_name"]}-{run_ident}'
 
         return config
