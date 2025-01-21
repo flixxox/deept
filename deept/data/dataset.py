@@ -18,8 +18,8 @@ def register_dataset(name):
         return cls
     return register_dataset_fn
 
-def create_dataset_from_config(config, is_train, key):
-    dataset = __DATASETS__[config[key]].create_from_config(config, is_train)
+def create_dataset_from_config(config, is_train, split, key):
+    dataset = __DATASETS__[config[key]].create_from_config(config, is_train, split)
     return dataset
 
 def get_all_dataset_keys():

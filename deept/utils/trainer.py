@@ -308,7 +308,7 @@ class Trainer:
             summary_manager.update_latest_from_score(score)
 
         summary_manager.update_latest_from_key_value(
-            f'{prefix}_steps',
+            'steps',
             steps
         )
 

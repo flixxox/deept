@@ -95,13 +95,13 @@ def create_dataloader(config):
     from deept.data.dataset import create_dataset_from_config
     from deept.data.dataloader import create_dataloader_from_config
 
-    dev_dataset = create_dataset_from_config(config, False, 'dev_dataset')
+    test_dataset = create_dataset_from_config(config, False, 'test', 'test_dataset')
 
-    dev_dataloader = create_dataloader_from_config(config, dev_dataset, 
+    test_dataloader = create_dataloader_from_config(config, test_dataset, 
         is_train=False
     )
 
-    return dev_dataloader
+    return test_dataloader
 
 def create_model(config):
     from deept.components.model import create_model_from_config

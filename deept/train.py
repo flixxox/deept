@@ -156,8 +156,8 @@ def create_dataloader(config):
     from deept.data.dataset import create_dataset_from_config
     from deept.data.dataloader import create_dataloader_from_config
 
-    train_dataset = create_dataset_from_config(config, True, 'train_dataset')
-    dev_dataset = create_dataset_from_config(config, False, 'dev_dataset')
+    train_dataset = create_dataset_from_config(config, True, 'train', 'train_dataset')
+    dev_dataset = create_dataset_from_config(config, False, 'dev', 'dev_dataset')
 
     train_dataloader = create_dataloader_from_config(config, train_dataset, 
         is_train=True
