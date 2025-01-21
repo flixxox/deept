@@ -240,13 +240,13 @@ class SweepDatabase:
     def get_keys_from_run(self, run):
         result = run.get_result()
         keys = [f'train_{k}' for k in result['train'].keys()]
-        keys += [f'eval_{k}' for k in result['eval'].keys()]
+        keys += [f'dev_{k}' for k in result['dev'].keys()]
         return keys
 
     def get_values_from_run(self, run):
         result = run.get_result()
         keys = [v for v in result['train'].values()]
-        keys += [v for v in result['eval'].values()]
+        keys += [v for v in result['dev'].values()]
         return keys
 
 

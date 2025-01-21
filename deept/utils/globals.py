@@ -49,7 +49,7 @@ class Settings:
     __DEVICE    = None
     __SEED      = None
     __RANK      = None
-    __USE_WANDB = None
+    __USE_WANDB = False
     __DIRS      = {}
 
     @staticmethod

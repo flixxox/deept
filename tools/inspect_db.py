@@ -38,7 +38,7 @@ if __name__ == '__main__':
     # Config
 
     max_rows_to_print = 35
-    scores = ['train_acc', 'eval_acc', 'eval_acc_std', 'eval_fr']
+    scores = ['train_acc', 'dev_acc', 'dev_acc_std', 'dev_fr']
 
     # Script
 
@@ -49,7 +49,7 @@ if __name__ == '__main__':
 
     config = Config.parse_config_from_path(config_file)
     best_ind = config['best_checkpoint_indicator']
-    best_ind = f'eval_{best_ind}'
+    best_ind = f'dev_{best_ind}'
 
     my_print(f'Hi! Inspecing {sweep_name}')
     my_print(f'Db file: {db_file}')

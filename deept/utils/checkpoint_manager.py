@@ -8,6 +8,42 @@ from deept.utils.debug import my_print
 from deept.utils.globals import Settings, Context
 
 
+def average_checkpoints(checkpoint_paths, output_dir, device='cpu', suffix='avg'):
+    state_dict = None
+
+    for path in checkpoint_paths:
+        
+        my_print(f'Summing {path}')
+
+        checkpoint = torch.load(path, map_location=device)
+        
+        if state_dict is None:
+            state_dict = checkpoint['model']
+            for k, v in state_dict.items():
+                state_dict[k] = v.to(torch.float64)
+        else:
+            for k, v in checkpoint['model'].items():
+                state_dict[k] += v.to(torch.float64)
+
+    for k in state_dict.keys():
+        state_dict[k] = (state_dict[k] / len(checkpoint_paths)).to(torch.float32)
+
+    my_print(f'Saving averaged checkpoint!')
+
+    torch.save({
+        'model': state_dict,
+        'best_score': 0.,
+        'early_abort_best_score': 0.,
+        'early_abort_count': 0,
+        'step_count': 0,
+        'epoch_count': 0,
+        'checkpoint_count': 0,
+        'checkpoint_duration_accum': 0.
+    }, join(output_dir, f'ckpt-{suffix}.pt'))
+
+    my_print(f'Averaged {len(checkpoint_paths)} checkpoints!')
+
+
 class CheckpointManager:
 
     def __init__(self, **kwargs):      
@@ -64,6 +100,8 @@ class CheckpointManager:
             load_weights = config['load_weights', False],
             load_weights_from = config['load_weights_from', ""],
             strict_loading = config['checkpoint_strict_loading', True],
+            best_indicator = config['best_checkpoint_indicator'],
+            best_goal = config['best_checkpoint_indicator_goal']
         )
         return checkpoint_manager
 

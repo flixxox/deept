@@ -25,40 +25,47 @@ class Trainer:
             setattr(self, k, v)
 
         self.model = Context['model']
-        self.criterions = Context['criterions']
-        self.optimizers = Context['optimizers']
-        self.lr_schedulers = Context['lr_schedulers']
         self.scores = Context['scores']
+        self.criterions = Context['criterions']
 
         reduce_fn = self.checkpoint_manager.ckpt_strategy_to_reduce_fn()
 
-        self.train_summary_manger = SummaryManager(
-            best_indicator=self.best_indicator,
-            reduce_fn=reduce_fn,
-            prefix='train'
-        )
-        self.eval_summary_manger = SummaryManager(
-            best_indicator=self.best_indicator,
-            reduce_fn=reduce_fn,
-            prefix='eval'
-        )
-        if self.print_per_step_summary:
-            self.step_summary_manger = SummaryManager(prefix='step')
+        if Settings.is_training():
+            self.train_summary_manger = SummaryManager(
+                best_indicator=self.best_indicator,
+                reduce_fn=reduce_fn,
+                prefix='train'
+            )
 
-        if Trainer.is_ddp():
-            self.model_input_keys = self.model.module.input_keys
+            self.optimizers = Context['optimizers']
+            self.lr_schedulers = Context['lr_schedulers']
+
+            if self.print_per_step_summary:
+                self.step_summary_manger = SummaryManager(prefix='step')
+
+            if Trainer.is_ddp():
+                self.model_input_keys = self.model.module.input_keys
+            else:
+                self.model_input_keys = self.model.input_keys
+
+            if self.wandb_log_grad_norms:
+                import wandb
         else:
             self.model_input_keys = self.model.input_keys
 
-        if self.wandb_log_grad_norms:
-            import wandb
+        self.eval_summary_manger = SummaryManager(
+            best_indicator=self.best_indicator,
+            reduce_fn=reduce_fn,
+            prefix=self.eval_prefix
+        )
 
     @staticmethod
     def create_trainer_from_config(config, train_dataloader, dev_dataloader, checkpoint_manager):
         trainer = Trainer(
             train_dataloader = train_dataloader,
-            dev_dataloader = dev_dataloader,
+            eval_dataloader = dev_dataloader,
             checkpoint_manager = checkpoint_manager,
+            eval_prefix = 'dev',
             num_workers = Settings.get_number_of_workers(),
             update_freq = config['update_freq'],
             best_indicator = config['best_checkpoint_indicator'],
@@ -70,6 +77,17 @@ class Trainer:
             average_gradients = config['average_gradients', True],
             wandb_log_grad_norms = (config['wandb_log_grad_norms', False] and Settings.use_wandb()),
             wandb_log_grad_norms_param_filter = config['wandb_log_grad_norms_param_filter', ''],
+        )
+
+        return trainer
+
+    @staticmethod
+    def create_eval_trainer_from_config(config, test_dataloader, checkpoint_manager):
+        trainer = Trainer(
+            eval_dataloader = test_dataloader,
+            checkpoint_manager = checkpoint_manager,
+            eval_prefix = 'test',
+            best_indicator = config['best_checkpoint_indicator']
         )
 
         return trainer
@@ -129,7 +147,7 @@ class Trainer:
 
         return {
             'train': self.train_summary_manger,
-            'eval': self.eval_summary_manger
+            'dev': self.eval_summary_manger
         }
     
     def do_checkpoint(self):
@@ -161,7 +179,7 @@ class Trainer:
             self.model.test_start_callback()
 
         steps = 0
-        for data in self.dev_dataloader:
+        for data in self.eval_dataloader:
             self.eval_step(data)
             steps += 1
 
@@ -171,11 +189,11 @@ class Trainer:
         self.create_fill_checkpoint_summary(
             self.eval_summary_manger,
             steps,
-            'eval'
+            self.eval_prefix
         )
 
         self.eval_summary_manger.log_latest(
-            self.checkpoint_manager.get_checkpoint_number()
+            write_to_file=Settings.is_training()
         )
 
         self.model.train()

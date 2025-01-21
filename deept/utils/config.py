@@ -463,7 +463,7 @@ class Config:
             if with_default:
                 return default
             else:
-                raise ValueError('Config is missing key "{key}"!')
+                raise ValueError(f'Config is missing key "{key}"!')
         
         return item
 

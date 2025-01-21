@@ -22,13 +22,12 @@ from deept.utils.setup import (
 
 
 def parse_cli_arguments():
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--config', type=str, required=True, 
         help='The path to the config.yaml which contains all user defined parameters.')
     parser.add_argument('--user-code', type=str, nargs='+', required=False, default=None,
-        help="""One or multiple paths to directories containing user code.""")
+        help='One or multiple paths to directories containing user code.')
     parser.add_argument('--output-folder', type=str, required=True, 
         help='The folder in which to write the training output (ckpts, learning-rates, perplexities etc.)')
     parser.add_argument('--resume-training', type=int, required=False, default=False, 

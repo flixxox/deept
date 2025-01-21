@@ -142,22 +142,22 @@ class Sweeper:
             for k, v in result['train'].items():
                 result_storage['train'][k].append(v)
 
-            for k, v in result['eval'].items():
-                result_storage['eval'][k].append(v)
+            for k, v in result['dev'].items():
+                result_storage['dev'][k].append(v)
 
             result_storage['best_ckpt'].append(result['best_ckpt'])
 
             return result_storage
 
         def __avg_and_std(result_storage):
-            result = {'train': {}, 'eval': {}}
+            result = {'train': {}, 'dev': {}}
             for k, v in result_storage['train'].items():
                 result['train'][k] = float(np.mean(v))
                 result['train'][f'{k}_std'] = float(np.std(v))
 
-            for k, v in result_storage['eval'].items():
-                result['eval'][k] = float(np.mean(v))
-                result['eval'][f'{k}_std'] = float(np.std(v))
+            for k, v in result_storage['dev'].items():
+                result['dev'][k] = float(np.mean(v))
+                result['dev'][f'{k}_std'] = float(np.std(v))
 
             result['best_ckpt'] = float(np.mean(result_storage['best_ckpt']))
             
@@ -168,11 +168,11 @@ class Sweeper:
         my_print(f'Sweeper: Run for seed {seed}!')
         result = self.call_normal(run_config, f'{run_ident}__seed_{seed}')
 
-        result_storage = {'train': {}, 'eval': {}}
+        result_storage = {'train': {}, 'dev': {}}
         for k, v in result['train'].items():
             result_storage['train'][k] = [v]
-        for k, v in result['eval'].items():
-            result_storage['eval'][k] = [v]
+        for k, v in result['dev'].items():
+            result_storage['dev'][k] = [v]
         result_storage['best_ckpt'] = [result['best_ckpt']]
         
         for seed in self.seeds_to_try[1:]:
@@ -189,11 +189,11 @@ class Sweeper:
         config = self.merge_normal_and_run_config(run_config, run_ident)
         summary_managers = self.function(config, *self.function_args)
 
-        best_ckpt_idx, best_eval_summary = summary_managers['eval'].get_summary_of_best()
+        best_ckpt_idx, best_dev_summary = summary_managers['dev'].get_summary_of_best()
         best_train_summary = summary_managers['train'].get_by_index(best_ckpt_idx)
         return {
             'train': best_train_summary.asdict(),
-            'eval': best_eval_summary.asdict(),
+            'dev': best_dev_summary.asdict(),
             'best_ckpt': best_ckpt_idx
         }
 
@@ -221,7 +221,7 @@ class Sweeper:
         return config
 
     def update_performance_sorted_list(self, result, run_ident):
-        this_best = result['eval'][self.best_indicator]
+        this_best = result['dev'][self.best_indicator]
         self.performance_sorted_configs.append((this_best, run_ident))
         self.performance_sorted_configs.sort(key=lambda x: x[0], reverse=True)
         write_to_file('output_dir_root', 'performance_sorted_sweeps', '~~~~ NEW SWEEP ~~~~')
@@ -234,14 +234,14 @@ class Sweeper:
             best_ckpt = result['best_ckpt']
             to_log[sweep_str] = {}
             to_log[sweep_str]['train'] = {}
-            to_log[sweep_str]['eval'] = {}
+            to_log[sweep_str]['dev'] = {}
             to_log[sweep_str]['best_ckpt'] = best_ckpt+1
             
             for k, v in result['train'].items():
                 to_log[sweep_str]['train'][k] = round_if_float(v)
             
-            for k, v in result['eval'].items():
-                to_log[sweep_str]['eval'][k] = round_if_float(v)
+            for k, v in result['dev'].items():
+                to_log[sweep_str]['dev'][k] = round_if_float(v)
         
         output_dir = Settings.get_dir('output_dir_root')
         output_dir = join(output_dir, f'sweep_summary.yaml')
