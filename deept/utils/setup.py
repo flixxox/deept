@@ -137,7 +137,9 @@ def setup_directories(config):
 
 def setup_torch(config):
     if config['deterministic', False]:
-        torch.use_deterministic_algorithms(True)
+        torch.use_deterministic_algorithms(True,
+            warn_only=config['deterministic_warn_only', False]
+        )
 
     if not Settings.is_training() and config['quantize_post_training', False]:
         backend = config['quantize_backend', 'x86']
