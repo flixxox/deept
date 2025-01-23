@@ -34,8 +34,12 @@ def parse_cli_arguments():
         help='The checkpoint to evaluate.')
     parser.add_argument('--number-of-gpus', type=int, required=False, default=None,
         help='This is usually specified in the config but can also be overwritten from the cli.')
+    parser.add_argument('--use-wandb', type=int, required=False, default=None,
+        help='Whether the evaluation shall be logged with wandb.')
 
     args = parser.parse_args()
+
+    args.use_wandb = bool(args.use_wandb)
 
     return vars(args)
 
@@ -46,6 +50,7 @@ def eval(config):
 
     config['load_weights'] = True
     config['load_weights_from'] = config['load_ckpt_from']
+    config['experiment_name'] = f'eval_{config["model"]}'
 
     Context.reset()
 
@@ -53,6 +58,8 @@ def eval(config):
 
     setup_directories(config)
     setup_seeds(config)
+    if Settings.use_wandb():
+        setup_wandb(config)
 
     test_dataloader = create_dataloader(config)
     
@@ -84,6 +91,10 @@ def eval(config):
     print_memory_usage()
 
     result = trainer.eval()
+
+    if config['use_wandb', False]:
+        import wandb
+        wandb.run.finish()
 
     my_print('Done!')
 
@@ -120,7 +131,7 @@ def create_scores(config, key):
 def create_checkpoint_manager(config):
     from deept.utils.checkpoint_manager import CheckpointManager
     checkpoint_manager = CheckpointManager.create_eval_checkpoint_manager_from_config(config)
-    checkpoint_manager.restore_if_requested()
+    #checkpoint_manager.restore_if_requested()
     my_print(f'Created checkoint_manager!')
     return checkpoint_manager
 

@@ -11,6 +11,7 @@ from deept.utils.globals import Settings, Context
 def average_checkpoints(checkpoint_paths, output_dir, device='cpu', suffix='avg'):
     state_dict = None
 
+    summed = 0
     for path in checkpoint_paths:
         
         my_print(f'Summing {path}')
@@ -25,8 +26,10 @@ def average_checkpoints(checkpoint_paths, output_dir, device='cpu', suffix='avg'
             for k, v in checkpoint['model'].items():
                 state_dict[k] += v.to(torch.float64)
 
+        summed += 1
+
     for k in state_dict.keys():
-        state_dict[k] = (state_dict[k] / len(checkpoint_paths)).to(torch.float32)
+        state_dict[k] = (state_dict[k] / summed).to(torch.float32)
 
     my_print(f'Saving averaged checkpoint!')
 
@@ -41,7 +44,7 @@ def average_checkpoints(checkpoint_paths, output_dir, device='cpu', suffix='avg'
         'checkpoint_duration_accum': 0.
     }, join(output_dir, f'ckpt-{suffix}.pt'))
 
-    my_print(f'Averaged {len(checkpoint_paths)} checkpoints!')
+    my_print(f'Averaged {summed} checkpoints!')
 
 
 class CheckpointManager:
