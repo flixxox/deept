@@ -77,13 +77,44 @@ class Sweeper:
                         )
                 self.param_options[name] = sweep_config['values']
             elif 'max' in keys and 'min' in keys and 'step' in keys:
-                smin = sweep_config['min']
-                smax = sweep_config['max']
-                sstep = sweep_config['step']
-                self.param_options[name] = list(np.arange(smin, smax+sstep, sstep))
+                self.param_options[name] = self.__parse_sweep_params_given_by_range(
+                    sweep_config['min'], sweep_config['max'], sweep_config['step'], sweep_config['round_to', None]
+                )
             else:
                 raise ValueError('Incorrect sweep param specification!')
             self.num_combinations *= len(self.param_options[name])
+    
+    def __parse_sweep_params_given_by_range(self, min, max, step, round_to):
+        values = list(np.arange(min, max+step, step))
+
+        if round_to is None:
+            round_to = self.__autodetect_round_precision(min, max, step)
+            return [round(v, round_to) for v in values]
+        else:
+            if round_to.lowercase() == 'no_round':
+                return values
+            else:
+                if isinstance(round_to, int):
+                    return [round(v, round_to) for v in values]
+                else:
+                    raise ValueError(f'Got wrong value for round_to. Got {round_to}. Expecting int or "no_round"!')
+
+    def __autodetect_round_precision(self, smin, smax, sstep):
+        def __get_decimal_digits(inp):
+            if '.' in inp:
+                return len(inp.split('.')[-1])
+            else:
+                return 0
+
+        smin = str(smin)
+        smax = str(smax)
+        sstep = str(sstep)
+
+        precision = max(0, __get_decimal_digits(smin))
+        precision = max(precision, __get_decimal_digits(smax))
+        precision = max(precision, __get_decimal_digits(sstep))
+
+        return precision
 
     def __create_database(self):
         sweep_name = self.experiment_name
