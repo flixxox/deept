@@ -3,10 +3,10 @@ from os.path import join
 from copy import deepcopy
 
 from deept.sweep.run import SweepRun
+from deept.utils.config import Config
 from deept.utils.debug import my_print
 from deept.utils.globals import Settings
 from deept.sweep.database import SweepDatabase
-from deept.utils.config import Config, read_yaml, get_root_dir
 from deept.utils.log import (
     value_to_str,
     write_to_file,

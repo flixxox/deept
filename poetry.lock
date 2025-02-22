@@ -162,6 +162,24 @@ files = [
 ]
 
 [[package]]
+name = "cool-config"
+version = "0.1.0"
+description = ""
+optional = false
+python-versions = ">=3.11.6, <4.0.0"
+files = []
+develop = false
+
+[package.dependencies]
+pyyaml = "^6.0.2"
+
+[package.source]
+type = "git"
+url = "https://github.com/flixxox/yaml-config-mngr"
+reference = "HEAD"
+resolved_reference = "29203f20c26d0e6ea54310e7de5d2c5134b4a69f"
+
+[[package]]
 name = "docker-pycreds"
 version = "0.4.0"
 description = "Python bindings for the docker credentials store API"
@@ -1128,5 +1146,5 @@ workspaces = ["wandb-workspaces"]
 
 [metadata]
 lock-version = "2.0"
-python-versions = "^3.11.4"
-content-hash = "1a98d4918a4822bfa39de3ee004bcb79673f004a19fe59bfdc94a61be5fffa90"
+python-versions = "^3.11.6"
+content-hash = "2aa1dedd2235931597c24cdd36920f1cc3e8b0a4af39e5428f1420e2308174ff"
