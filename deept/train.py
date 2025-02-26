@@ -31,9 +31,9 @@ def parse_cli_arguments():
     parser.add_argument('--output-folder', type=str, required=True, 
         help='The folder in which to write the training output (ckpts, learning-rates, perplexities etc.)')
     parser.add_argument('--resume-training', type=int, required=False, default=False, 
-        help='If you want to resume a training, set this flat to 1 and specify the directory with "resume-training-from".')
+        help='If you want to resume a training, set this flag to 1 and specify the directory with "resume-training-from".')
     parser.add_argument('--resume-training-from', type=str, required=False, default='', 
-        help='If you want to resume a training, specify the output directory here. We expect it to have the same layout as a newly created one.')
+        help='If you want to resume a training, specify the output directory here. We expect its folder structure to have the same layout as a newly created one by DeepT.')
     parser.add_argument('--number-of-gpus', type=int, required=False, default=None,
         help='This is usually specified in the config but can also be overwritten from the cli.')
     parser.add_argument('--experiment-name', type=str, required=False, default='deept-training',
