@@ -131,7 +131,7 @@ def create_scores(config, key):
 def create_checkpoint_manager(config):
     from deept.utils.checkpoint_manager import CheckpointManager
     checkpoint_manager = CheckpointManager.create_eval_checkpoint_manager_from_config(config)
-    #checkpoint_manager.restore_if_requested()
+    checkpoint_manager.restore_if_requested()
     my_print(f'Created checkoint_manager!')
     return checkpoint_manager
 

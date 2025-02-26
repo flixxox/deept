@@ -177,7 +177,7 @@ pyyaml = "^6.0.2"
 type = "git"
 url = "https://github.com/flixxox/yaml-config-mngr"
 reference = "HEAD"
-resolved_reference = "29203f20c26d0e6ea54310e7de5d2c5134b4a69f"
+resolved_reference = "f4a260d6d6c5c51e3148cc0de2fa21e1c2439270"
 
 [[package]]
 name = "docker-pycreds"
