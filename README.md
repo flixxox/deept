@@ -17,6 +17,7 @@ Core Features:
 - **Stateful Model API** –  Stepwise decoding for stateful models.
 - **Reproducibility** – IF needed, ensures deterministic behavior for consistent results.
 - **Utility Tools** – Includes features for inspecting sweep databases and averaging checkpoints.
+- **Wandb Support** - If needed, scores and logs are transmitted to wandb.
 
 
 ## Setup ##
