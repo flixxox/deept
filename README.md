@@ -14,7 +14,7 @@ Core Features:
 - **Minimal Overhead for Customization** – Lightweight and modular, making it easy to adapt for project-specific needs.
 - **Comprehensive Logging** – Captures and logs all scores.
 - **Advanced Configuration using YAML files** – Features a YAML-based configuration system using [cool-config](https://github.com/flixxox/yaml-config-mngr).
-- **Stateful Model API** – Facilitates stepwise decoding for stateful models.
+- **Stateful Model API** –  Stepwise decoding for stateful models.
 - **Reproducibility** – IF needed, ensures deterministic behavior for consistent results.
 - **Utility Tools** – Includes features for inspecting sweep databases and averaging checkpoints.
 
