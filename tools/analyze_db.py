@@ -105,7 +105,7 @@ if __name__ == '__main__':
 
     config = Config.parse_config_from_path(config_file)
     best_ind = config['best_checkpoint_indicator']
-    best_ind = f'eval_{best_ind}'
+    best_ind = f'dev_{best_ind}'
 
     my_print(f'Hi! Inspecing {sweep_name}')
     my_print(f'Db file: {db_file}')

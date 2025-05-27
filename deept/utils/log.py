@@ -4,7 +4,6 @@ import torch
 
 from deept.utils.debug import my_print
 from deept.utils.globals import Settings
-from deept.components.scores import Score
 
 
 def int_to_str(value):
@@ -59,7 +58,6 @@ def write_scores_dict_to_files(scores_dict, prefix=''):
         write_number_to_file(prefix + '.' + k, v)
 
 def print_summary(name, number, **kwargs):
-    
     def pr_int(name, value):
         length = len(name) + 2 + 6
         if value is not None:
@@ -130,7 +128,6 @@ class Summary:
         self.__summary = {} 
 
     def update_from_score(self, score):
-        assert isinstance(score, Score)
         update = score.get_reduced_accumulator_values()
         self.__summary.update(update)
 

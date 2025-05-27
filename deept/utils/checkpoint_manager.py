@@ -177,7 +177,7 @@ class CheckpointManager:
     def save(self, score_summary):
         if Settings.rank() == 0:
             self.save_last()
-            
+
             cur_score = score_summary.get_value(self.best_indicator)
 
             if self.__is_better(cur_score):
