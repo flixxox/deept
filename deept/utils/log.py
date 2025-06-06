@@ -5,6 +5,11 @@ import torch
 from deept.utils.debug import my_print
 from deept.utils.globals import Settings
 
+TRAIN_PREFIX = 'train'
+DEV_PREFIX = 'dev'
+TEST_PREFIX = 'test'
+LOG_SPLIT_STD = '_'
+LOG_SPLIT_FILE = '.'
 
 def int_to_str(value):
     return f'{value:0>4}'
@@ -55,7 +60,7 @@ def write_number_to_file(filename, value):
 
 def write_scores_dict_to_files(scores_dict, prefix=''):
     for k, v in scores_dict.items():
-        write_number_to_file(prefix + '.' + k, v)
+        write_number_to_file(append_prefix_file(prefix, k), v)
 
 def print_summary(name, number, **kwargs):
     def pr_int(name, value):
@@ -84,7 +89,7 @@ def print_summary(name, number, **kwargs):
             return ''.center(length, ' ')
 
     to_print = (
-        f'| {name.center(8, " ")} '
+        f'| {name.center(14, " ")} '
         f'| number: {number:0>4} '
     )
 
@@ -119,6 +124,12 @@ def write_dict_to_yaml(file_path, to_log):
     import hiyapyco
     with open(file_path, 'w') as file:
         file.write(hiyapyco.dump(to_log))
+
+def append_prefix_std(prefix, key):
+    return f'{prefix}{LOG_SPLIT_STD}{key}'
+
+def append_prefix_file(prefix, key):
+    return f'{prefix}{LOG_SPLIT_FILE}{key}'
 
 
 class Summary:
@@ -172,6 +183,12 @@ class Summary:
         for k, v in self.__summary.items():
             to_log[k] = round_if_float(v)
         write_dict_to_yaml(output_file_path, to_log)
+
+    def overwrite_key(self, old_key, new_key):
+        assert old_key != new_key
+        self.__summary[new_key] = self.__summary[old_key]
+        del self.__summary[old_key]
+
 
 class SummaryManager:
 
