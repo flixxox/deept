@@ -8,6 +8,7 @@ from deept.utils.debug import my_print
 from deept.utils.globals import Settings
 from deept.sweep.database import SweepDatabase
 from deept.utils.log import (
+    Summary,
     value_to_str,
     write_to_file,
     round_if_float,
@@ -169,48 +170,37 @@ class Sweeper:
         self.update_performance_sorted_list(result, run_ident)
 
     def call_for_every_seed(self, run_config, run_ident):
-        def __store_in(result, result_storage):
-            for k, v in result['train'].items():
-                result_storage['train'][k].append(v)
-
-            for k, v in result['dev'].items():
-                result_storage['dev'][k].append(v)
-
-            result_storage['best_ckpt'].append(result['best_ckpt'])
-
-            return result_storage
+        def __store_in(summary, summary_storage):
+            for k, v in summary.items():
+                if k in summary_storage.keys():
+                    summary_storage.update_from_key_value(
+                        k, summary_storage.get_value(k).append(v)
+                    )
+                else:
+                    summary_storage.update_from_key_value(
+                        k, [v]
+                    )
+            return summary_storage
 
         def __avg_and_std(result_storage):
-            result = {'train': {}, 'dev': {}}
-            for k, v in result_storage['train'].items():
-                result['train'][k] = float(np.mean(v))
-                result['train'][f'{k}_std'] = float(np.std(v))
-
-            for k, v in result_storage['dev'].items():
-                result['dev'][k] = float(np.mean(v))
-                result['dev'][f'{k}_std'] = float(np.std(v))
-
-            result['best_ckpt'] = float(np.mean(result_storage['best_ckpt']))
-            
-            return result
-
-        seed = self.seeds_to_try[0]
-        run_config['seed'] = seed
-        my_print(f'Sweeper: Run for seed {seed}!')
-        result = self.call_normal(run_config, f'{run_ident}__seed_{seed}')
-
-        result_storage = {'train': {}, 'dev': {}}
-        for k, v in result['train'].items():
-            result_storage['train'][k] = [v]
-        for k, v in result['dev'].items():
-            result_storage['dev'][k] = [v]
-        result_storage['best_ckpt'] = [result['best_ckpt']]
+            avg_summary = Summary('')
+            for k, v in summary_storage.items():
+                assert isinstance(v, list)
+                avg_summary.update_from_key_value(
+                    k, (
+                        float(np.mean(v)),
+                        float(np.std(v)),
+                        len(v)
+                    )
+                )
+            return avg_summary
         
-        for seed in self.seeds_to_try[1:]:
+        summary_storage = Summary('')
+        for seed in self.seeds_to_try:
             my_print(f'Sweeper: Run for seed {seed}!')
             run_config['seed'] = seed
-            result = self.call_normal(run_config, f'{run_ident}__seed_{seed}')
-            result_storage = __store_in(result, result_storage)
+            summary = self.call_normal(run_config, f'{run_ident}__seed_{seed}')
+            summary_storage = __store_in(summary, summary_storage)
 
         result = __avg_and_std(result_storage)
 
@@ -218,15 +208,9 @@ class Sweeper:
 
     def call_normal(self, run_config, run_ident):
         config = self.merge_normal_and_run_config(run_config, run_ident)
-        summary_managers = self.function(config, *self.function_args)
-
-        best_ckpt_idx, best_dev_summary = summary_managers['dev'].get_summary_of_best()
-        best_train_summary = summary_managers['train'].get_by_index(best_ckpt_idx)
-        return {
-            'train': best_train_summary.asdict(),
-            'dev': best_dev_summary.asdict(),
-            'best_ckpt': best_ckpt_idx
-        }
+        summary = self.function(config, *self.function_args)
+        assert isinstance(summary, Summary)
+        return summary
 
     def fulfills_constraints(self, run_config):
         if self.constraints is None:
@@ -252,7 +236,7 @@ class Sweeper:
         return config
 
     def update_performance_sorted_list(self, result, run_ident):
-        this_best = result['dev'][self.best_indicator]
+        this_best = result.get_value(self.best_indicator)
         self.performance_sorted_configs.append((this_best, run_ident))
         self.performance_sorted_configs.sort(key=lambda x: x[0], reverse=True)
         write_to_file('output_dir_root', 'performance_sorted_sweeps', '~~~~ NEW SWEEP ~~~~')
@@ -262,17 +246,9 @@ class Sweeper:
     def log_all_best_summaries(self):
         to_log = {}
         for sweep_str, result in self.results.items():
-            best_ckpt = result['best_ckpt']
             to_log[sweep_str] = {}
-            to_log[sweep_str]['train'] = {}
-            to_log[sweep_str]['dev'] = {}
-            to_log[sweep_str]['best_ckpt'] = best_ckpt+1
-            
-            for k, v in result['train'].items():
-                to_log[sweep_str]['train'][k] = round_if_float(v)
-            
-            for k, v in result['dev'].items():
-                to_log[sweep_str]['dev'][k] = round_if_float(v)
+            for k, v in result.items():
+                to_log[sweep_str][k] = round_if_float(v)
         
         output_dir = Settings.get_dir('output_dir_root')
         output_dir = join(output_dir, f'sweep_summary.yaml')

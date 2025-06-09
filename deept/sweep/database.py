@@ -176,8 +176,7 @@ class SweepDatabase:
         self.cur.execute(sql_string)
 
     def save_result(self, run):
-        keys = self.get_keys_from_run(run)
-        values = self.get_values_from_run(run)
+        keys, values = self.get_keys_and_values_from_run(run)
 
         key_str = 'run_results(run_id'
         for k in keys:
@@ -239,15 +238,15 @@ class SweepDatabase:
 
     def get_keys_from_run(self, run):
         result = run.get_result()
-        keys = [f'train_{k}' for k in result['train'].keys()]
-        keys += [f'dev_{k}' for k in result['dev'].keys()]
-        return keys
+        return result.keys()
 
-    def get_values_from_run(self, run):
+    def get_keys_and_values_from_run(self, run):
         result = run.get_result()
-        keys = [v for v in result['train'].values()]
-        keys += [v for v in result['dev'].values()]
-        return keys
+        keys, values = [], []
+        for k, v in result.items():
+            keys.append(k)
+            values.append(v)
+        return keys, values
 
 
     def disconnect(self):
