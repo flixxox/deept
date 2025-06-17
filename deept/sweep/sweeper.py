@@ -174,7 +174,7 @@ class Sweeper:
             for k, v in summary.items():
                 if k in summary_storage.keys():
                     summary_storage.update_from_key_value(
-                        k, summary_storage.get_value(k).append(v)
+                        k, summary_storage.get_value(k) + [v]
                     )
                 else:
                     summary_storage.update_from_key_value(
@@ -182,14 +182,14 @@ class Sweeper:
                     )
             return summary_storage
 
-        def __avg_and_std(result_storage):
+        def __avg_and_std(summary_storage):
             avg_summary = Summary('')
             for k, v in summary_storage.items():
                 assert isinstance(v, list)
                 avg_summary.update_from_key_value(
                     k, (
-                        float(np.mean(v)),
-                        float(np.std(v)),
+                        round(float(np.mean(v)), 2),
+                        round(float(np.std(v)), 2),
                         len(v)
                     )
                 )
@@ -199,10 +199,14 @@ class Sweeper:
         for seed in self.seeds_to_try:
             my_print(f'Sweeper: Run for seed {seed}!')
             run_config['seed'] = seed
-            summary = self.call_normal(run_config, f'{run_ident}__seed_{seed}')
+            if len(run_ident) > 0:
+                cur_run_ident = f'{run_ident}__seed_{seed}'
+            else:
+                cur_run_ident = f'seed_{seed}'
+            summary = self.call_normal(run_config, cur_run_ident)
             summary_storage = __store_in(summary, summary_storage)
 
-        result = __avg_and_std(result_storage)
+        result = __avg_and_std(summary_storage)
 
         return result
 
