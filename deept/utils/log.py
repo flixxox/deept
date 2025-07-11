@@ -167,7 +167,7 @@ class Summary:
         if Settings.use_wandb():
             self.wandb_log()
 
-    def wandb_log(self):
+    def wandb_log(self, step=None):
         import wandb
         to_log = {}
         for k,v in self.__summary.items():
@@ -175,7 +175,7 @@ class Summary:
                 to_log[f'{self.prefix}_{k}'] = v
             else:
                 to_log[k] = v
-        wandb.log(to_log)
+        wandb.log(to_log, step=step)
 
     def log_to_yaml(self, output_file_path, best_ckpt_id):
         to_log = {}
