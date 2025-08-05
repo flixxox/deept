@@ -166,7 +166,7 @@ class SweepDatabase:
         return res.fetchone() is not None
 
     def create_run_results_table(self, run):
-        keys = self.get_keys_from_run(run)
+        keys = run.get_result_keys()
 
         sql_string = f'CREATE TABLE run_results(result_id INTEGER PRIMARY KEY, run_id INTEGER'
         for k in keys:
@@ -176,7 +176,7 @@ class SweepDatabase:
         self.cur.execute(sql_string)
 
     def save_result(self, run):
-        keys, values = self.get_keys_and_values_from_run(run)
+        keys, values = run.get_result_keys_values()
 
         key_str = 'run_results(run_id'
         for k in keys:
@@ -235,19 +235,6 @@ class SweepDatabase:
 
     def timestamp(self):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    def get_keys_from_run(self, run):
-        result = run.get_result()
-        return result.keys()
-
-    def get_keys_and_values_from_run(self, run):
-        result = run.get_result()
-        keys, values = [], []
-        for k, v in result.items():
-            keys.append(k)
-            values.append(v)
-        return keys, values
-
 
     def disconnect(self):
         self.con.close()

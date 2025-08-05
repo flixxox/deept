@@ -35,3 +35,20 @@ class SweepRun:
     def get_result(self):
         assert self.has_result()
         return self.result
+
+    def get_result_keys(self):
+        keys = []
+        for k in self.result.keys():
+            keys.append(f'{k}')
+            keys.append(f'{k}_std')
+        return keys
+
+    def get_result_keys_values(self):
+        keys = []
+        values = []
+        for k, v in self.result.items():
+            keys.append(f'{k}')
+            keys.append(f'{k}_std')
+            values.append(v[0])
+            values.append(v[1])
+        return keys, values
