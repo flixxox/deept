@@ -145,8 +145,14 @@ class Summary:
     def update_from_key_value(self, key, value):
         self.__summary[key] = value
 
-    def get_value(self, key):
-        return self.__summary[key]
+    def get_value(self, key, raise_e=True):
+        if key in self.__summary:
+            return self.__summary[key]
+        else:
+            if raise_e:
+                raise RuntimeError(f'Summary {self.prefix} does not have entry {key}!')
+            else:
+                return None
 
     def asdict(self):
         return self.__summary

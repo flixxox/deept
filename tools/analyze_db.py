@@ -3,6 +3,9 @@ import sqlite3
 from os.path import join
 from datetime import datetime
 
+import numpy as np
+import matplotlib.pyplot as plt
+
 from deept.utils.config import Config
 from deept.utils.debug import my_print
 
@@ -81,21 +84,65 @@ def param_analysis(columns, best_ind):
             value = str(value)
             score = columns[best_ind][i]
             if value not in summary[param].keys():
-                summary[param][value] = [1, score]
+                summary[param][value] = [score]
             else:
-                summary[param][value][0] += 1
-                summary[param][value][1] += score
+                summary[param][value].append(score)
 
     
     for param in summary.keys():
         my_print(f' ~~~ Performance of {param}')
 
         param_summary = dict(sorted(summary[param].items(), key=lambda item: item[0]))
-        for value, perf in param_summary.items():
-            hits = perf[0]
-            score_sum = perf[1]
-            my_print(f'{value} : {hits} {score_sum/hits:4.2f}')
+        for value, scores in param_summary.items():
+            score_sum = sum(scores)
+            my_print(f'{value} : {len(scores)} {score_sum/len(scores):4.2f}')
 
+    plot_param_score_summary(summary)
+
+def plot_param_score_summary(summary, prefix="param_score_summary"):
+    n_params = len(summary)
+    fig, axes = plt.subplots(n_params, 1, figsize=(8, 5 * n_params), squeeze=False)
+    axes = axes.flatten()
+
+    for idx, (param, value_dict) in enumerate(summary.items()):
+        param_values = []
+        avg_scores = []
+        counts = []
+        for value, scores in value_dict.items():
+            param_values.append(float(value))
+            avg_scores.append(np.mean(scores))
+            counts.append(len(scores))
+
+        # Sort by param value for a nice plot
+        sorted_items = sorted(zip(param_values, avg_scores, counts))
+        param_values, avg_scores, counts = zip(*sorted_items)
+
+        ax1 = axes[idx]
+        ax2 = ax1.twinx()
+
+        ax1.plot(param_values, avg_scores, marker='o', linestyle='-', color='royalblue', label='Avg Score')
+        ax1.set_ylabel('Average Score', fontsize=12, color='royalblue')
+        ax1.tick_params(axis='y', labelcolor='royalblue')
+
+        # Orange line with opacity
+        ax2.plot(param_values, counts, marker='s', linestyle='-', color='orange', label='Num Scores', alpha=0.5)
+        ax2.set_ylabel('Num Scores', fontsize=12, color='orange')
+        ax2.tick_params(axis='y', labelcolor='orange')
+
+        ax1.set_title(f'Average Score - {param}', fontsize=14)
+        ax1.set_xlabel(f'{param}', fontsize=12)
+        ax1.grid(True, linestyle='--', alpha=0.6)
+
+        # Legends
+        lines_1, labels_1 = ax1.get_legend_handles_labels()
+        lines_2, labels_2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, fontsize=11)
+
+    plt.tight_layout()
+    plt.savefig(f"/Users/fschmidt/img/sweep_analysis/{prefix}_all_params.jpg", format='jpg', dpi=150)
+    plt.clf()
+    plt.cla()
+    plt.close()
 
 if __name__ == '__main__':
     sweep_folder = sys.argv[1]
@@ -105,7 +152,6 @@ if __name__ == '__main__':
 
     config = Config.parse_config_from_path(config_file)
     best_ind = config['best_checkpoint_indicator']
-    best_ind = f'dev_{best_ind}'
 
     my_print(f'Hi! Inspecing {sweep_name}')
     my_print(f'Db file: {db_file}')

@@ -38,7 +38,7 @@ if __name__ == '__main__':
     # Config
 
     max_rows_to_print = 35
-    scores = ['dev_acc', 'dev_acc_std']
+    scores = ['dwn_train_acc', 'dwn_train_acc_std'] #['dwn_train_acc', 'dwn_train_acc_std']
 
     # Script
 
