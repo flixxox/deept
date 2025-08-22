@@ -166,6 +166,8 @@ class Sweeper:
             result = self.call_for_every_seed(run_config, run_ident)
         else:
             result = self.call_normal(run_config, run_ident)
+            for k,v in result.items():
+                result.update_from_key_value(k, (v, 0., 1))
         self.results[run_ident] = result
         self.update_performance_sorted_list(result, run_ident)
 
@@ -248,12 +250,14 @@ class Sweeper:
             write_to_file('output_dir_root', 'performance_sorted_sweeps', f'{config}: {value_to_str(metric)}')
 
     def log_all_best_summaries(self):
-        to_log = {}
-        for sweep_str, result in self.results.items():
-            to_log[sweep_str] = {}
-            for k, v in result.items():
-                to_log[sweep_str][k] = round_if_float(v)
-        
-        output_dir = Settings.get_dir('output_dir_root')
-        output_dir = join(output_dir, f'sweep_summary.yaml')
-        write_dict_to_yaml(output_dir, to_log)
+        if Settings.has_dir('output_dir_root'):
+            to_log = {}
+            for sweep_str, result in self.results.items():
+                to_log[sweep_str] = {}
+                for k, v in result.items():
+                    to_log[sweep_str][k] = round_if_float(v)
+            output_dir = Settings.get_dir('output_dir_root')
+            output_dir = join(output_dir, f'sweep_summary.yaml')
+            write_dict_to_yaml(output_dir, to_log)
+        else:
+            my_print('Warning! Did not find directory "output_dir_root". Cannot log sweep summary!')

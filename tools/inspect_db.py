@@ -85,11 +85,6 @@ if __name__ == '__main__':
     avg_time =  compute_avg_hours(runs, run_started_at_idx, run_finished_at_idx)
 
     my_print(f'~~~ Already sweept {len(runs)} runs with {avg_time:4.2f} hours per run.')
-    my_print("""+======================================+
-|   _ \                   |  |         |
-|     /   -_) (_-<  |  |  |   _| (_-<  |
-|  _|_\ \___| ___/ \_,_| _| \__| ___/  |
-+======================================+""")
 
     rows = [
         ['run_ident'] + scores + ['started_at', 'finished_at']
