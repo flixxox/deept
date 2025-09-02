@@ -68,7 +68,16 @@ if __name__ == '__main__':
     result_names = [description[0] for description in cur.description]
 
     result_run_id_idx = result_names.index('run_id')
-    result_scores_idxs = [result_names.index(score) for score in scores] 
+    found_scores = []
+    result_scores_idxs = []
+    for score in scores:
+        if score in result_names:
+            found_scores.append(score)
+            result_scores_idxs.append(result_names.index(score))
+        else:
+            my_print(f'Warning! Did not find score {score} in!')
+
+    scores = found_scores
 
     # Runs
 
@@ -87,10 +96,11 @@ if __name__ == '__main__':
 
     my_print(f'~~~ Already sweept {len(runs)} runs with {avg_time:4.2f} hours per run.')
     my_print("""+======================================+
-|   _ \                   |  |         |
-|     /   -_) (_-<  |  |  |   _| (_-<  |
-|  _|_\ \___| ___/ \_,_| _| \__| ___/  |
-+======================================+""")
+    |   _ \                   |  |         |
+    |     /   -_) (_-<  |  |  |   _| (_-<  |
+    |  _|_\ \___| ___/ \_,_| _| \__| ___/  |
+    +======================================+"""
+    )
 
     rows = [
         ['run_ident'] + scores + ['started_at', 'finished_at']
