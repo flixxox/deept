@@ -1,5 +1,6 @@
 import sys
 import sqlite3
+import numpy as np
 from os.path import join
 from datetime import datetime
 
@@ -33,12 +34,28 @@ def compute_avg_hours(runs, started_at_idx, finished_at_idx):
     elapsed_avg /= len(runs)
     return elapsed_avg
 
+def print_avg_scores(results, scores, result_scores_idxs):
+    num_scores = len(result_scores_idxs)
+    store = [[] for _ in range(num_scores)]
+    for result in results:
+        for i, score_idx in enumerate(result_scores_idxs):
+            res = result[score_idx]
+            store[i].append(res)
+
+    my_print(f' [INFO] Average scores:')
+    for i, score in enumerate(scores):
+        avg = round(np.mean(store[i]),1)
+        std = round(np.std(store[i]), 1)
+        my_print(f' [INFO] {score}: Average {avg} Std {std}')
+        
+
+
 if __name__ == '__main__':
 
     # Config
 
-    max_rows_to_print = 35
-    scores = ['dwn_dev_acc_last', 'dwn_dev_acc_last_std', 'dwn_test_acc_last', 'dwn_test_acc_last_std'] #['dwn_train_acc', 'dwn_train_acc_std']
+    max_rows_to_print = 100
+    scores = ['dev_acc', 'dev_acc_std', 'dwn_dev_acc_last', 'dwn_test_acc_last', 'dwn_test_acc_last_std', 'train_entropy_mean', 'train_nmi_mean', 'train_silh_mean', 'dwn_train_acc', 'dwn_train_acc_std']
 
     # Script
 
@@ -67,7 +84,17 @@ if __name__ == '__main__':
     result_names = [description[0] for description in cur.description]
 
     result_run_id_idx = result_names.index('run_id')
-    result_scores_idxs = [result_names.index(score) for score in scores] 
+
+    scores_in_db = []
+    result_scores_idxs = []
+    for score in scores:
+        if score in result_names:
+            scores_in_db.append(score)
+            result_scores_idxs.append(result_names.index(score))
+        else:
+            my_print(f'Warning! Missing score {score}!')
+    
+    scores = scores_in_db
 
     # Runs
 
@@ -84,15 +111,17 @@ if __name__ == '__main__':
 
     avg_time =  compute_avg_hours(runs, run_started_at_idx, run_finished_at_idx)
 
-    my_print(f'~~~ Already sweept {len(runs)} runs with {avg_time:4.2f} hours per run.')
+    my_print(f' [INFO] Already sweept {len(runs)} runs with {avg_time:4.2f} hours per run.')
+
+    print_avg_scores(results, scores, result_scores_idxs)
 
     rows = [
-        ['run_ident'] + scores + ['started_at', 'finished_at']
+        ['run_ident'] + scores
     ]
 
     for result in results:
         run_id = result[result_run_id_idx]
-        scores = [str(result[score_idx]) for score_idx in result_scores_idxs]
+        cur_scores = [str(result[score_idx]) for score_idx in result_scores_idxs]
         
         run_idx = run_run_ids.index(run_id)
         run = runs[run_run_ids.index(run_id)]
@@ -101,7 +130,7 @@ if __name__ == '__main__':
         finished_at = run[run_finished_at_idx]
 
         rows.append(
-            [run_ident] + scores + [started_at, finished_at]
+            [run_ident] + cur_scores
         )
 
         if len(rows) > max_rows_to_print:

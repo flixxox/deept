@@ -233,6 +233,8 @@ class Sweeper:
         config = deepcopy(self.normal_config)
 
         for k, v in run_config.items():
+            if k not in config.keys():
+                raise ValueError(f'There is a parameter in the sweep config ("{k}") which is not specified in the main config!')
             config[k] = v
         
         config['output_folder_root'] = config['output_folder']
