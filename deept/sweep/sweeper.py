@@ -50,7 +50,7 @@ class Sweeper:
         else:
             raise ValueError(f'Did not regonize the goal of the best score. Got: {self.best_goal}!')
 
-        self.do_repeat_for_seeds = len(self.seeds_to_try) > 0
+        self.do_repeat_for = len(self.repeat_for_configs) > 0
 
         self.__parse_sweep_parameters()
         self.sweep_strat.parse_sweep_parameters(self.param_options)
@@ -102,7 +102,9 @@ class Sweeper:
 
     def __autodetect_round_precision(self, smin, smax, sstep):
         def __get_decimal_digits(inp):
-            if '.' in inp:
+            if inp.startswith('1e-'):
+                return int(inp[3:])
+            elif '.' in inp:
                 return len(inp.split('.')[-1])
             else:
                 return 0
@@ -132,8 +134,9 @@ class Sweeper:
         )
 
     def sweep(self):
-        for i in range(min(self.max_count, self.num_combinations)):
-            run_config = self.sweep_strat.get_config(i)
+        i = 1
+        while i < min(self.max_count, self.num_combinations):
+            run_config = self.sweep_strat.get_config()
             run = SweepRun(run_config)
             
             if self.is_valid(run):
@@ -142,11 +145,13 @@ class Sweeper:
                 
                 my_print(f'Sweeper: Running {run.ident}!')
 
-                self.call_sweep_fn_and_log(run_config, run.ident)
-                
+                self.call_sweep_fn_and_log(run)
+
                 if self.do_multi_sweep:
                     run.set_result(self.results[run.ident])
                     self.database.mark_done(run)
+
+                i += 1
 
         self.log_all_best_summaries()
         if self.do_multi_sweep:
@@ -161,17 +166,17 @@ class Sweeper:
             return False
         return True
 
-    def call_sweep_fn_and_log(self, run_config, run_ident):
-        if self.do_repeat_for_seeds:
-            result = self.call_for_every_seed(run_config, run_ident)
+    def call_sweep_fn_and_log(self, run):
+        if self.do_repeat_for:
+            result = self.call_for_every_repeat_for(run)
         else:
-            result = self.call_normal(run_config, run_ident)
+            result = self.call_normal(run)
             for k,v in result.items():
                 result.update_from_key_value(k, (v, 0., 1))
-        self.results[run_ident] = result
-        self.update_performance_sorted_list(result, run_ident)
+        self.results[run.ident] = result
+        self.update_performance_sorted_list(result, run.ident)
 
-    def call_for_every_seed(self, run_config, run_ident):
+    def call_for_every_repeat_for(self, run):
         def __store_in(summary, summary_storage):
             for k, v in summary.items():
                 if k in summary_storage.keys():
@@ -197,23 +202,24 @@ class Sweeper:
                 )
             return avg_summary
         
+        # We modify the config only temporarily
+        # for that repeat_for config
+        run = deepcopy(run)
+
         summary_storage = Summary('')
-        for seed in self.seeds_to_try:
-            my_print(f'Sweeper: Run for seed {seed}!')
-            run_config['seed'] = seed
-            if len(run_ident) > 0:
-                cur_run_ident = f'{run_ident}__seed_{seed}'
-            else:
-                cur_run_ident = f'seed_{seed}'
-            summary = self.call_normal(run_config, cur_run_ident)
+        for repeat_for_config in self.repeat_for_configs:
+            my_print(f'Sweeper: Run for repeat_for_config {repeat_for_config}!')
+            run.update_config(repeat_for_config)
+
+            summary = self.call_normal(run)
             summary_storage = __store_in(summary, summary_storage)
 
         result = __avg_and_std(summary_storage)
 
         return result
 
-    def call_normal(self, run_config, run_ident):
-        config = self.merge_normal_and_run_config(run_config, run_ident)
+    def call_normal(self, run):
+        config = self.merge_normal_and_run_config(run)
         summary = self.function(config, *self.function_args)
         assert isinstance(summary, Summary)
         return summary
@@ -229,17 +235,17 @@ class Sweeper:
                 return False
         return True
 
-    def merge_normal_and_run_config(self, run_config, run_ident):
+    def merge_normal_and_run_config(self, run):
         config = deepcopy(self.normal_config)
 
-        for k, v in run_config.items():
+        for k, v in run.config.items():
             if k not in config.keys():
                 raise ValueError(f'There is a parameter in the sweep config ("{k}") which is not specified in the main config!')
             config[k] = v
         
         config['output_folder_root'] = config['output_folder']
-        config['output_folder'] = join(config['output_folder'], run_ident)
-        config['experiment_name'] =  f'{config["experiment_name"]}-{run_ident}'
+        config['output_folder'] = join(config['output_folder'], run.ident)
+        config['experiment_name'] =  f'{config["experiment_name"]}-{run.ident}'
 
         return config
 

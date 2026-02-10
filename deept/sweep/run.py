@@ -23,7 +23,7 @@ class SweepRun:
             v = value_to_str(v, no_precise=False)
             as_string = f'{as_string}__{k}_{v}'
         as_string = as_string[2:]
-        return as_string 
+        return as_string
 
     def has_result(self):
         return self.__has_result
@@ -52,3 +52,8 @@ class SweepRun:
             values.append(v[0])
             values.append(v[1])
         return keys, values
+
+    def update_config(self, new_config):
+        for k, v in new_config.items():
+            self.config[k] = v
+        self.ident = self.config_as_string()

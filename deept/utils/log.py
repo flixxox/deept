@@ -33,10 +33,13 @@ def value_to_str(v, no_precise=False):
     if isinstance(v, int):
         v = int_to_str(v)
     elif isinstance(v, float):
-        if v > 1e-2 or v == 0. or no_precise:
+        if no_precise:
             v = float_to_str(v)
         else:
-            v = float_to_str_precise(v)
+            if round(v, 2) == v:
+                v = float_to_str(v)
+            else:
+                v = float_to_str_precise(v)
     return v
 
 def round_if_float(v):

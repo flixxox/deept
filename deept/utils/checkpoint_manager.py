@@ -108,7 +108,6 @@ class CheckpointManager:
         )
         return checkpoint_manager
 
-
     def restore_if_requested(self):
         if self.resume_training:
             self.restore_latest()

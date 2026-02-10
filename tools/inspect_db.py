@@ -46,7 +46,7 @@ def print_avg_scores(results, scores, result_scores_idxs):
     for i, score in enumerate(scores):
         avg = round(np.mean(store[i]),1)
         std = round(np.std(store[i]), 1)
-        my_print(f' [INFO] {score}: Average {avg} Std {std}')
+        my_print(f' [INFO] {score}: Average {avg}+-{std}')
         
 
 
@@ -55,7 +55,25 @@ if __name__ == '__main__':
     # Config
 
     max_rows_to_print = 100
-    scores = ['dev_acc', 'dev_acc_std', 'dwn_dev_acc_last', 'dwn_test_acc_last', 'dwn_test_acc_last_std', 'train_entropy_mean', 'train_nmi_mean', 'train_silh_mean', 'dwn_train_acc', 'dwn_train_acc_std']
+    scores = [
+        'dev_acc',
+        'dev_acc_last',
+        'dev_acc_std',
+        'train_acc_last',
+        'test_acc_mean',
+        'test_acc_last',
+        'dwn_dev_acc_mean',
+        'dwn_test_acc_last',
+        'dwn_test_acc_last_std',
+        'dwn_test_acc_mean',
+        'dwn_test_acc_mean_std',
+        'train_entropy_mean',
+        'train_entropy_std',
+        'train_nmi_mean',
+        'train_silh_mean',
+        'dwn_train_acc',
+        'dwn_train_acc_std'
+    ]
 
     # Script
 

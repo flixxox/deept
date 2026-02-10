@@ -53,27 +53,29 @@ class GridSweepStrategy(SweepStrategy):
             for j in range(i+1, len(sweep_parameters)):
                 c *= len(sweep_parameters[j]['values'])
             sweep_parameters[i]['div'] = c
-        
-        self.sweep_parameters= sweep_parameters
+
+        self.idx = 0        
+        self.sweep_parameters = sweep_parameters
 
     @staticmethod
     def create_from_config(config):
         return GridSweepStrategy()
     
-    def get_config(self, iteration):
-        idx = iteration
+    def get_config(self):
         sweep_config = {}
         for k, v in self.sweep_parameters.items():
 
             div = self.sweep_parameters[k]['div']
 
-            i = idx // div
-            idx = idx % div
+            i = self.idx // div
+            idx = self.idx % div
 
             name = self.sweep_parameters[k]['name']
             value = self.sweep_parameters[k]['values'][i]
 
             sweep_config[name] = value
+
+        self.idx += 1
         
         return sweep_config
 
@@ -89,9 +91,10 @@ class RandomSweepStrategy(GridSweepStrategy):
         return RandomSweepStrategy()
 
     def parse_sweep_parameters(self, param_options):
+        print(param_options)
         self.param_options = param_options
 
-    def get_config(self, iteration):
+    def get_config(self):
         config = {}
         for name, values in self.param_options.items():
             config[name] = random.choice(values)
