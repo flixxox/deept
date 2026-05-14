@@ -54,25 +54,24 @@ if __name__ == '__main__':
 
     # Config
 
-    max_rows_to_print = 100
+    max_rows_to_print = 300
     scores = [
         'dev_acc',
-        'dev_acc_last',
+        'dev_acc_dense',
         'dev_acc_std',
-        'train_acc_last',
-        'test_acc_mean',
-        'test_acc_last',
-        'dwn_dev_acc_mean',
+        'train_acc_dense',
+        'test_acc_dense',
+        'dwn_dev_acc_last',
+        'dwn_dev_acc_dense',
+        'dwn_test_acc_dense',
         'dwn_test_acc_last',
-        'dwn_test_acc_last_std',
         'dwn_test_acc_mean',
-        'dwn_test_acc_mean_std',
-        'train_entropy_mean',
-        'train_entropy_std',
+        'train_rel_batch_entropy',
+        'train_abs_batch_entropy',
         'train_nmi_mean',
         'train_silh_mean',
         'dwn_train_acc',
-        'dwn_train_acc_std'
+        'dwn_dev_loss'
     ]
 
     # Script

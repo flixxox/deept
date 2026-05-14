@@ -43,6 +43,10 @@ class SweepDatabase:
             'use_wandb',
             'remove_from_hash',
             'number_of_gpus'
+            'early_abort',
+            'checkpoints_till_abort',
+            'early_abort_threshold',
+            'checkpoint_strategy'
         ] + self.remove_from_hash
 
         sweep_folder = join(self.sweep_folder_root, self.sweep_name)

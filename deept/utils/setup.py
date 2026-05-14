@@ -34,6 +34,8 @@ def setup(config, rank, world_size,
     DeepTConfigDescription.create_deept_config_description()
     setup_settings(config, rank, world_size, train, time)
     setup_torch(config)
+    Settings.reset_directories()
+    maybe_create_root_directory_for_sweeper(config)
     if config['number_of_gpus'] > 0:
         setup_cuda(config)
     if config['number_of_gpus'] > 1:
@@ -50,7 +52,13 @@ def import_user_code(paths_to_user_code):
             module = module[1:]
         if module.endswith('.'):
             module = module[:-1]
-        module = importlib.import_module(module)
+        try:
+            importlib.import_module(module)
+        except ModuleNotFoundError as e:
+            raise ModuleNotFoundError(
+                f"Failed to import user-code module '{module}': {e}! "
+                f"Make sure the module name is correct and all its dependencies are installed."
+            ) from e
 
     def __can_be_imported(filename):
         return (filename.endswith('.py')
@@ -84,6 +92,9 @@ def import_user_code(paths_to_user_code):
         if path.endswith('/'):
             path = path[:-1]
 
+        if path not in sys.path:
+            sys.path.insert(0, path)
+
         __import_files_recursive('', path)
 
 def setup_settings(config, rank, world_size, train, time):
@@ -92,50 +103,14 @@ def setup_settings(config, rank, world_size, train, time):
     Settings.set_train_flag(train)
     Settings.set_time_flag(time)
     Settings.set_use_wandb(config['use_wandb', False])
+
+def setup_torch(config):
     if config['number_of_gpus'] < 1:
         my_print('Limiting to CPU!')
         Settings.set_cpu()
         Settings.set_device('cpu')
     else:
         Settings.set_device(f'cuda:{Settings.rank()}')
-
-def setup_directories(config):
-    def __maybe_create_dir(dir):
-        from os import mkdir
-        if not isdir(dir):
-            mkdir(dir)
-    
-    Settings.reset_directories()
-    if config.has_key('output_folder_root'):
-        Settings.add_dir('output_dir_root', config['output_folder_root'])
-    Settings.add_dir('output_dir', config['output_folder'])
-    Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
-    Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
-
-    if not Settings.is_training():
-        Settings.add_dir('search_dir', join(config['output_folder'], 'search'))
-    
-    if Settings.rank() == 0:
-        if Settings.is_training():
-            if Settings.has_dir('output_dir_root'):
-                __maybe_create_dir(Settings.get_dir('output_dir_root'))
-            __maybe_create_dir(Settings.get_dir('output_dir'))
-            __maybe_create_dir(Settings.get_dir('checkpoint_dir'))
-            __maybe_create_dir(Settings.get_dir('numbers_dir'))
-
-            assert isdir(Settings.get_dir('checkpoint_dir')), f"""Something went wrong in creating directories! 
-                Expected to have the directory {Settings.get_dir('checkpoint_dir')}"""
-
-            assert isdir(Settings.get_dir('numbers_dir')), f"""Something went wrong in creating directories! 
-                Expected to have the directory {Settings.get_dir('numbers_dir')}"""
-
-        else:
-            __maybe_create_dir(Settings.get_dir('search_dir'))
-
-            assert isdir(Settings.get_dir('search_dir')), f"""Something went wrong in creating directories! 
-                Expected to have the directory {Settings.get_dir('search_dir')}"""
-
-def setup_torch(config):
     if config['deterministic', False]:
         torch.use_deterministic_algorithms(True,
             warn_only=config['deterministic_warn_only', False]
@@ -156,6 +131,43 @@ def setup_torch(config):
         torch.autograd.set_detect_anomaly(False)
 
     torch.set_printoptions(precision=4, sci_mode=False)
+
+def maybe_create_root_directory_for_sweeper(config):
+    if config['do_sweep', False] and Settings.is_training():
+        Settings.add_dir('output_dir_root', config['output_folder'])
+        if Settings.rank() == 0:
+            maybe_create_dir(Settings.get_dir('output_dir_root'))
+
+def setup_directories(config):
+    Settings.add_dir('output_dir', config['output_folder'])
+    Settings.add_dir('numbers_dir', join(config['output_folder'], 'numbers'))
+    Settings.add_dir('checkpoint_dir',  join(config['output_folder'], 'checkpoints'))
+
+    if not Settings.is_training():
+        Settings.add_dir('search_dir', join(config['output_folder'], 'search'))
+    
+    if Settings.rank() == 0:
+        if Settings.is_training():
+            maybe_create_dir(Settings.get_dir('output_dir'))
+            maybe_create_dir(Settings.get_dir('checkpoint_dir'))
+            maybe_create_dir(Settings.get_dir('numbers_dir'))
+
+            assert isdir(Settings.get_dir('checkpoint_dir')), f"""Something went wrong in creating directories! 
+                Expected to have the directory {Settings.get_dir('checkpoint_dir')}"""
+
+            assert isdir(Settings.get_dir('numbers_dir')), f"""Something went wrong in creating directories! 
+                Expected to have the directory {Settings.get_dir('numbers_dir')}"""
+
+        else:
+            maybe_create_dir(Settings.get_dir('search_dir'))
+
+            assert isdir(Settings.get_dir('search_dir')), f"""Something went wrong in creating directories! 
+                Expected to have the directory {Settings.get_dir('search_dir')}"""
+
+def maybe_create_dir(dir):
+    from os import mkdir
+    if not isdir(dir):
+        mkdir(dir)
 
 def setup_cuda(config):
     torch.cuda.set_device(Settings.get_device())

@@ -1,26 +1,25 @@
 from cool_config import CoolConfig
 
-from deept.sweep.sweeper import Sweeper
+from deept.sweep.sweeper import SearchSweeper, ComparativeSweeper
 from deept.sweep.strategies import create_sweep_strategy_from_config
+from deept.sweep.parsing import parse_repeat_for_value, parse_sweep_parameters
+
 
 def create_sweeper_from_config(config, sweep_fn, sweep_fn_args):
-    sweep_strat = create_sweep_strategy_from_config(config)
-    
-    do_multi_sweep = config['sweep_configuration/activate_multi_sweep', False]
-    sweep_name = None
-    hash_config = None
-    cleanup_after = None
-    remove_from_hash = None
-    sweep_folder_root = None
-    if do_multi_sweep:
-        config['sweep_configuration'].assert_has_key('multi_sweep')
-        hash_config = config['sweep_configuration/multi_sweep/hash_config', True]
-        cleanup_after = config['sweep_configuration/multi_sweep/cleanup_after', 12]
-        sweep_folder_root = config['sweep_configuration/multi_sweep/sweep_folder_root']
-        remove_from_hash = config['sweep_configuration/multi_sweep/remove_from_hash', []]
+    shared_kwargs = build_shared_sweeper_kwargs(config, sweep_fn, sweep_fn_args)
 
-    sweep_name = config['sweep_configuration/multi_sweep/sweep_name', None]
-    config['experiment_name'] = sweep_name
+    if isinstance(shared_kwargs['sweep_parameters'], list):
+        return create_comparative_sweeper_from_config(config, shared_kwargs)
+    elif isinstance(shared_kwargs['sweep_parameters'], CoolConfig):
+        return create_search_sweeper_from_config(config, shared_kwargs)
+    else:
+        raise ValueError(
+            f'Sweep config "parameters" must be either a list or a dict!'
+            f'Note that depending on what it is the behavior of the sweeper differs.'
+        )
+
+def build_shared_sweeper_kwargs(config, sweep_fn, sweep_fn_args):
+    do_multi_sweep, multi_sweep_kwargs = parse_multi_sweep_config(config)
 
     repeat_for = config['sweep_configuration/repeat_for', None]
     if repeat_for is not None:
@@ -28,66 +27,80 @@ def create_sweeper_from_config(config, sweep_fn, sweep_fn_args):
     else:
         repeat_for = []
 
-    sweeper = Sweeper(
-        config, sweep_strat, sweep_fn, sweep_fn_args,
-        config['best_checkpoint_indicator'],
-        config['best_checkpoint_indicator_goal'],
-        experiment_name = config['experiment_name'],
-        output_folder_root = config['output_folder'],
-        max_count = config['sweep_configuration/count'],
-        constraints = config['sweep_configuration/constraints', None],
-        sweep_parameters = config['sweep_configuration/parameters', {}],
-        repeat_for_configs = repeat_for,
-        do_multi_sweep = do_multi_sweep,
-        sweep_folder_root = sweep_folder_root,
-        sweep_name = sweep_name,
-        hash_config = hash_config,
-        cleanup_after = cleanup_after,
-        remove_from_hash = remove_from_hash
+    shared_kwargs = dict(
+        normal_config=config,
+        function=sweep_fn,
+        function_args=sweep_fn_args,
+        best_indicator=config['best_checkpoint_indicator'],
+        best_goal=config['best_checkpoint_indicator_goal'],
+        sweep_name=config[
+            'sweep_configuration/sweep_name',
+            config['sweep_configuration/multi_sweep/sweep_name', None]
+        ],
+        output_folder_root=config['output_folder'],
+        constraints=config['sweep_configuration/constraints', None],
+        sweep_parameters=config['sweep_configuration/parameters'],
+        run_dry=config['run_dry', False],
+        repeat_for_configs=repeat_for,
+        do_multi_sweep=do_multi_sweep,
+        **multi_sweep_kwargs
     )
 
-    return sweeper
+    if shared_kwargs['sweep_name'] is None:
+        raise ValueError('Missing sweep_name in sweep config!')
 
-def parse_repeat_for_value(config, repeat_for):
-    parsed_repeat_for = []
+    return shared_kwargs
 
-    if isinstance(repeat_for, CoolConfig):
-        if len(repeat_for.keys()) > 1:
-            raise ValueError(
-                f'If repeat_for is given as a dict, there is only one parameter allowed. Got {len(repeat_for.keys())}: {repeat_for}!'
-            )
-        
-        k, v = next(repeat_for.items())
+def parse_multi_sweep_config(config):
+    do_multi_sweep = config['sweep_configuration/activate_multi_sweep', False]
+    multi_sweep_kwargs = {
+        'sweep_folder_root': None,
+        'hash_config': None,
+        'cleanup_after': None,
+        'remove_from_hash': None,
+    }
 
-        if not k in config.keys():
-            raise ValueError(
-                f'There is a repeat_for parameter not present in the config by default! To prevent unseen errors this throws. Got {k}!'
-            )
-        
-        if isinstance(v, list):
-            for e in v:
-                parsed_repeat_for.append({k: e})
-        else:
-            parsed_repeat_for.append({k: v})
+    if do_multi_sweep:
+        multi_sweep_kwargs['sweep_folder_root'] = config['sweep_configuration/multi_sweep/sweep_folder_root']
+        multi_sweep_kwargs['hash_config'] = config['sweep_configuration/multi_sweep/hash_config', True]
+        multi_sweep_kwargs['cleanup_after'] = config['sweep_configuration/multi_sweep/cleanup_after', 86]
+        multi_sweep_kwargs['remove_from_hash'] = config['sweep_configuration/multi_sweep/remove_from_hash', []]
 
-    elif isinstance(repeat_for, list):
-        for repeat_config in repeat_for:
-            if not isinstance(repeat_config, CoolConfig):
-                raise ValueError(
-                    f'If repeat_for contains a list, every item is expected to be a dictionary. Got: {repeat_for}!'
-                )
+    return do_multi_sweep, multi_sweep_kwargs
 
-            for k in repeat_config.keys():
-                if not k in config.keys():
-                    raise ValueError(
-                        f'There is a repeat_for parameter not present in the config by default! To prevent unseen errors this throws. Param "{k}"!'
-                    )
+def create_comparative_sweeper_from_config(config, shared_kwargs):
+    import random
+    from copy import deepcopy
 
-            parsed_repeat_for.append(repeat_config)
-    else:
-        raise ValueError(f'Error! repeat_for must be provided as a dict or list! Got: {repeat_for}!')
+    configs_to_compare = deepcopy(shared_kwargs['sweep_parameters'])
 
-    # Repeat for has structure:[{k:v, k:v}, {k:v, k:v}, {k:v, k:v}]
-    # The parameter is repeated over these configs
+    if config['shuffle_parameters_randomly', True]:
+        random.Random(0).shuffle(configs_to_compare)
 
-    return parsed_repeat_for
+    comparative_kwargs = dict(
+        configs_to_compare=configs_to_compare
+    )
+
+    return ComparativeSweeper(
+        comparative_kwargs,
+        **shared_kwargs
+    )
+
+def create_search_sweeper_from_config(config, shared_kwargs):
+    param_options, num_combinations = parse_sweep_parameters(
+        shared_kwargs['sweep_parameters']
+    )
+
+    sweep_strat = create_sweep_strategy_from_config(config)
+
+    search_kwargs = dict(
+        sweep_strat=sweep_strat,
+        param_options=param_options,
+        num_combinations=num_combinations,
+        max_count=config['sweep_configuration/count'],
+    )
+
+    return SearchSweeper(
+        search_kwargs,
+        **shared_kwargs
+    )

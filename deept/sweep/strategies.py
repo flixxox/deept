@@ -63,12 +63,13 @@ class GridSweepStrategy(SweepStrategy):
     
     def get_config(self):
         sweep_config = {}
+        idx = self.idx
         for k, v in self.sweep_parameters.items():
 
             div = self.sweep_parameters[k]['div']
 
-            i = self.idx // div
-            idx = self.idx % div
+            i = idx // div
+            idx = idx % div
 
             name = self.sweep_parameters[k]['name']
             value = self.sweep_parameters[k]['values'][i]
@@ -86,16 +87,25 @@ class RandomSweepStrategy(GridSweepStrategy):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.tried = []
+
     @staticmethod
     def create_from_config(config):
         return RandomSweepStrategy()
 
     def parse_sweep_parameters(self, param_options):
-        print(param_options)
         self.param_options = param_options
 
     def get_config(self):
-        config = {}
-        for name, values in self.param_options.items():
-            config[name] = random.choice(values)
+        config = None
+        while config is None or self.check_if_not_yet_tried(config):
+            config = {}
+            for name, values in self.param_options.items():
+                config[name] = random.choice(values)
+        config_tuple = tuple(sorted(config.items()))
+        self.tried.append(config_tuple)
         return config
+
+    def check_if_not_yet_tried(self, config):
+        config_tuple = tuple(sorted(config.items()))
+        return config_tuple in self.tried

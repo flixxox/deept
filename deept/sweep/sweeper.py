@@ -18,22 +18,7 @@ from deept.utils.log import (
 
 class Sweeper:
 
-    def __init__(self,
-        normal_config,
-        sweep_strat,
-        function,
-        function_args,
-        best_indicator,
-        best_goal,
-        **kwargs
-    ):
-        self.normal_config = normal_config
-        self.sweep_strat = sweep_strat
-        self.function = function
-        self.function_args = function_args
-        self.best_indicator = best_indicator
-        self.best_goal = best_goal
-
+    def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -52,12 +37,6 @@ class Sweeper:
 
         self.do_repeat_for = len(self.repeat_for_configs) > 0
 
-        self.__parse_sweep_parameters()
-        self.sweep_strat.parse_sweep_parameters(self.param_options)
-
-        self.sorted_parameter_names = [k for k in self.param_options.keys()]
-        self.sorted_parameter_names.sort(key=len, reverse=True)
-
         if self.do_multi_sweep:
             self.__create_database()
             self.database.connect()
@@ -65,114 +44,58 @@ class Sweeper:
         self.results = {}
         self.performance_sorted_configs = []
 
-    def __parse_sweep_parameters(self):
-        self.num_combinations = 1
-        self.param_options = {}
-        for name, sweep_config in self.sweep_parameters.items():
-            keys = sweep_config.keys()
-            if 'values' in keys:
-                for v in sweep_config['values']:
-                    if isinstance(v, str) and '_' in v:
-                        raise ValueError(
-                            'Currently, "_" is a special token and not supported as part of a value.'
-                        )
-                self.param_options[name] = sweep_config['values']
-            elif 'max' in keys and 'min' in keys and 'step' in keys:
-                self.param_options[name] = self.__parse_sweep_params_given_by_range(
-                    sweep_config['min'], sweep_config['max'], sweep_config['step'], sweep_config['round_to', None]
-                )
-            else:
-                raise ValueError('Incorrect sweep param specification!')
-            self.num_combinations *= len(self.param_options[name])
-    
-    def __parse_sweep_params_given_by_range(self, min, max, step, round_to):
-        values = list(np.arange(min, max+step, step))
-
-        if round_to is None:
-            round_to = self.__autodetect_round_precision(min, max, step)
-            return [round(v, round_to) for v in values]
-        else:
-            if round_to.lowercase() == 'no_round':
-                return values
-            else:
-                if isinstance(round_to, int):
-                    return [round(v, round_to) for v in values]
-                else:
-                    raise ValueError(f'Got wrong value for round_to. Got {round_to}. Expecting int or "no_round"!')
-
-    def __autodetect_round_precision(self, smin, smax, sstep):
-        def __get_decimal_digits(inp):
-            if inp.startswith('1e-'):
-                return int(inp[3:])
-            elif '.' in inp:
-                return len(inp.split('.')[-1])
-            else:
-                return 0
-
-        smin = str(smin)
-        smax = str(smax)
-        sstep = str(sstep)
-
-        precision = max(0, __get_decimal_digits(smin))
-        precision = max(precision, __get_decimal_digits(smax))
-        precision = max(precision, __get_decimal_digits(sstep))
-
-        return precision
-
     def __create_database(self):
-        sweep_name = self.experiment_name
-        if self.sweep_name is not None and self.sweep_name != '':
-            sweep_name = self.sweep_name
-
         self.database = SweepDatabase(
             self.normal_config,
             self.sweep_folder_root,
-            sweep_name,
+            self.sweep_name,
             self.hash_config,
             self.cleanup_after,
             self.remove_from_hash
         )
 
     def sweep(self):
-        i = 1
-        while i < min(self.max_count, self.num_combinations):
-            run_config = self.sweep_strat.get_config()
-            run = SweepRun(run_config)
-            
-            if self.is_valid(run):
-                if self.do_multi_sweep:
-                    self.database.mark_running(run)
-                
-                my_print(f'Sweeper: Running {run.ident}!')
-
-                self.call_sweep_fn_and_log(run)
-
-                if self.do_multi_sweep:
-                    run.set_result(self.results[run.ident])
-                    self.database.mark_done(run)
-
-                i += 1
-
+        self.inner_sweep()
         self.log_all_best_summaries()
         if self.do_multi_sweep:
             self.database.disconnect()
 
-    def is_valid(self, run):
-        if not self.fulfills_constraints(run.config):
-            my_print(f'Skip {run.ident}! Constraints not met.')
+    def maybe_run(self, run):
+        if self.is_valid(run):
+            if self.do_multi_sweep:
+                self.database.mark_running(run)
+
+            my_print(f'Sweeper: Running {run.ident}!')
+
+            self.call_sweep_fn_and_log(run)
+
+            if self.do_multi_sweep:
+                run.set_result(self.results[run.ident])
+                self.database.mark_done(run)
+
+            return True
+        else:
             return False
+
+    def is_valid(self, run):
         if self.do_multi_sweep and self.database.is_already_running_or_done(run):
             my_print(f'Skip {run.ident}! Already tried.')
             return False
         return True
 
     def call_sweep_fn_and_log(self, run):
-        if self.do_repeat_for:
-            result = self.call_for_every_repeat_for(run)
+        if self.run_dry:
+            result = Summary('')
+            result.update_from_key_value(
+                self.best_indicator, (0.0, 0.0)
+            )
         else:
-            result = self.call_normal(run)
-            for k,v in result.items():
-                result.update_from_key_value(k, (v, 0., 1))
+            if self.do_repeat_for:
+                result = self.call_for_every_repeat_for(run)
+            else:
+                result = self.call_normal(run)
+                for k,v in result.items():
+                    result.update_from_key_value(k, (v, 0., 1))
         self.results[run.ident] = result
         self.update_performance_sorted_list(result, run.ident)
 
@@ -224,17 +147,6 @@ class Sweeper:
         assert isinstance(summary, Summary)
         return summary
 
-    def fulfills_constraints(self, run_config):
-        if self.constraints is None:
-            return True
-        for c in self.constraints:
-            for p in self.sorted_parameter_names:
-                c = c.replace(p, str(run_config[p]))
-            r = eval(c)
-            if not r:
-                return False
-        return True
-
     def merge_normal_and_run_config(self, run):
         config = deepcopy(self.normal_config)
 
@@ -243,16 +155,16 @@ class Sweeper:
                 raise ValueError(f'There is a parameter in the sweep config ("{k}") which is not specified in the main config!')
             config[k] = v
         
-        config['output_folder_root'] = config['output_folder']
         config['output_folder'] = join(config['output_folder'], run.ident)
-        config['experiment_name'] =  f'{config["experiment_name"]}-{run.ident}'
+        config['experiment_name'] =  f'{self.sweep_name}-{run.ident}'
 
         return config
 
     def update_performance_sorted_list(self, result, run_ident):
         this_best = result.get_value(self.best_indicator)
         self.performance_sorted_configs.append((this_best, run_ident))
-        self.performance_sorted_configs.sort(key=lambda x: x[0], reverse=True)
+        sort_reverse = (self.best_goal == 'max')
+        self.performance_sorted_configs.sort(key=lambda x: x[0], reverse=sort_reverse)
         write_to_file('output_dir_root', 'performance_sorted_sweeps', '~~~~ NEW SWEEP ~~~~')
         for (metric, config) in self.performance_sorted_configs:
             write_to_file('output_dir_root', 'performance_sorted_sweeps', f'{config}: {value_to_str(metric)}')
@@ -269,3 +181,59 @@ class Sweeper:
             write_dict_to_yaml(output_dir, to_log)
         else:
             my_print('Warning! Did not find directory "output_dir_root". Cannot log sweep summary!')
+
+
+class ComparativeSweeper(Sweeper):
+
+    def __init__(self, comparative_kwargs, **kwargs):
+        super().__init__(**kwargs)
+        for k, v in comparative_kwargs.items():
+            setattr(self, k, v)
+
+    def inner_sweep(self):
+        for run_config in self.configs_to_compare:
+            run = SweepRun(run_config)
+            self.maybe_run(run)
+
+class SearchSweeper(Sweeper):
+
+    def __init__(self, search_kwargs, **kwargs):
+        super().__init__(**kwargs)
+        for k, v in search_kwargs.items():
+            setattr(self, k, v)
+
+        self.sweep_strat.parse_sweep_parameters(self.param_options)
+        self.sorted_parameter_names = [k for k in self.param_options.keys()]
+        self.sorted_parameter_names.sort(key=len, reverse=True)
+
+    def inner_sweep(self):
+        i_ran = 0
+        i_tried = 0
+        while i_ran < self.max_count and i_tried < self.num_combinations:
+            run_config = self.sweep_strat.get_config()
+            run = SweepRun(run_config)
+
+            if self.fulfills_constraints(run.config):
+                did_run = self.maybe_run(run)
+                if did_run:
+                    i_ran += 1
+            else:
+                my_print(f'Skip {run.ident}! Constraints not met.')
+
+            i_tried +=1
+
+        if i_tried >= self.num_combinations:
+            my_print(f'Sweeper: Tried all {self.num_combinations} possible combinations!')
+        elif i_ran >= self.max_count:
+            my_print(f'Sweeper: Ran max amount {self.max_count} of requested combinations!')
+    
+    def fulfills_constraints(self, run_config):
+        if self.constraints is None:
+            return True
+        for c in self.constraints:
+            for p in self.sorted_parameter_names:
+                c = c.replace(p, str(run_config[p]))
+            r = eval(c)
+            if not r:
+                return False
+        return True
