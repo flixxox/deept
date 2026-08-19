@@ -61,17 +61,16 @@ if __name__ == '__main__':
         'dev_acc_std',
         'train_acc_dense',
         'test_acc_dense',
-        'dwn_dev_acc_last',
+        #'dwn_dev_acc_last',
         'dwn_dev_acc_dense',
         'dwn_test_acc_dense',
-        'dwn_test_acc_last',
-        'dwn_test_acc_mean',
+        'dwn_e_test_acc_dense',
+        'dwn_mukt_test_acc_dense',
+       # 'dwn_test_acc_last',
         'train_rel_batch_entropy',
         'train_abs_batch_entropy',
-        'train_nmi_mean',
         'train_silh_mean',
-        'dwn_train_acc',
-        'dwn_dev_loss'
+        'train_d_pert',
     ]
 
     # Script

@@ -61,27 +61,52 @@ class Sweeper:
             self.database.disconnect()
 
     def maybe_run(self, run):
-        if self.is_valid(run):
-            if self.do_multi_sweep:
-                self.database.mark_running(run)
+        action, output_folder = self.determine_run_action(run)
 
+        if action == 'skip':
+            return False
+
+        run.output_folder = output_folder
+        run.resume_output_folder = output_folder if action == 'resume' else None
+
+        if self.do_multi_sweep:
+            self.database.mark_running(run, output_folder)
+
+        if action == 'resume':
+            my_print(f'Sweeper: Resuming {run.ident} from {output_folder}!')
+        else:
             my_print(f'Sweeper: Running {run.ident}!')
 
-            self.call_sweep_fn_and_log(run)
+        self.call_sweep_fn_and_log(run)
 
-            if self.do_multi_sweep:
-                run.set_result(self.results[run.ident])
-                self.database.mark_done(run)
+        if self.do_multi_sweep:
+            run.set_result(self.results[run.ident])
+            self.database.mark_done(run)
 
-            return True
-        else:
-            return False
-
-    def is_valid(self, run):
-        if self.do_multi_sweep and self.database.is_already_running_or_done(run):
-            my_print(f'Skip {run.ident}! Already tried.')
-            return False
         return True
+
+    def determine_run_action(self, run):
+        fresh_output_folder = join(self.normal_config['output_folder'], run.ident)
+
+        if not self.do_multi_sweep:
+            return 'run', fresh_output_folder
+
+        status = self.database.get_run_status(run)
+
+        if status is None:
+            return 'run', fresh_output_folder
+        elif status['status'] == 'ERROR':
+            if self.restart_error_runs:
+                my_print(f'Sweeper: {run.ident} is in error state! "restart_error_runs" is set, starting over fresh!')
+                return 'run', fresh_output_folder
+            else:
+                return 'resume', status['output_folder']
+        elif status['status'] == 'RUNNING' and self.force_resume_of_running_jobs:
+            my_print(f'Sweeper: {run.ident} is marked RUNNING, but "force_resume_of_running_jobs" is set! Resuming anyway!')
+            return 'resume', status['output_folder']
+        else:
+            my_print(f'Skip {run.ident}! Already tried.')
+            return 'skip', None
 
     def call_sweep_fn_and_log(self, run):
         if self.run_dry:
@@ -154,9 +179,17 @@ class Sweeper:
             if k not in config.keys():
                 raise ValueError(f'There is a parameter in the sweep config ("{k}") which is not specified in the main config!')
             config[k] = v
-        
-        config['output_folder'] = join(config['output_folder'], run.ident)
+
+        config['output_folder'] = run.output_folder if run.output_folder is not None else join(config['output_folder'], run.ident)
         config['experiment_name'] =  f'{self.sweep_name}-{run.ident}'
+
+        if run.resume_output_folder is not None:
+            checkpoint_dir_to_resume_from = join(run.resume_output_folder, 'checkpoints')
+            config['load_weights'] = True
+            config['load_checkpoint_from'] = checkpoint_dir_to_resume_from
+            for downstream_config in config['downstreams', []]:
+                downstream_config['load_weights'] = True
+                downstream_config['load_checkpoint_from'] = checkpoint_dir_to_resume_from
 
         return config
 
@@ -181,7 +214,6 @@ class Sweeper:
             write_dict_to_yaml(output_dir, to_log)
         else:
             my_print('Warning! Did not find directory "output_dir_root". Cannot log sweep summary!')
-
 
 class ComparativeSweeper(Sweeper):
 

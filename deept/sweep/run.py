@@ -16,10 +16,12 @@ class SweepRun:
         self.run_id = None
         self.result = None
         self.__has_result = False
+        self.output_folder = None
+        self.resume_output_folder = None
     
     def config_as_string(self):
         as_string = ''
-        for k, v in self.config.items():
+        for k, v in sorted(self.config.items(), key=lambda item: item[0]):
             v = value_to_str(v, no_precise=False)
             as_string = f'{as_string}__{k}_{v}'
         as_string = as_string[2:]

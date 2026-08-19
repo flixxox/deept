@@ -1,7 +1,8 @@
+import sys
 import yaml
 import sqlite3
 from os import mkdir
-from os.path import isdir, join, isfile
+from os.path import isdir, join, isfile, abspath, dirname
 from datetime import datetime
 
 from deept.utils.debug import my_print
@@ -33,6 +34,8 @@ class SweepDatabase:
         if not isdir(self.sweep_folder_root):
             mkdir(self.sweep_folder_root)
 
+        self.set_or_check_codebase_directory()
+
         exclude = [
             'experiment_name',
             'config',
@@ -46,7 +49,8 @@ class SweepDatabase:
             'early_abort',
             'checkpoints_till_abort',
             'early_abort_threshold',
-            'checkpoint_strategy'
+            'checkpoint_strategy',
+            'force_resume_of_running_jobs'
         ] + self.remove_from_hash
 
         sweep_folder = join(self.sweep_folder_root, self.sweep_name)
@@ -80,12 +84,34 @@ class SweepDatabase:
         self.cleanup()
         my_print('Sweeper: Connected!')
 
+    def set_or_check_codebase_directory(self):
+        detected_codebase_directory = self.detect_codebase_directory()
+
+        if not self.normal_config.has_key('codebase_directory'):
+            self.normal_config['codebase_directory'] = detected_codebase_directory
+        else:
+            existing_codebase_directory = self.normal_config['codebase_directory']
+            if existing_codebase_directory != detected_codebase_directory:
+                my_print(
+                    f'[Sweeper] This run is executing from codebase directory '
+                    f'"{detected_codebase_directory}", but the config already specifies '
+                    f'"{existing_codebase_directory}"! All sweepers contributing to the '
+                    f'same sweep must run from the same codebase.'
+                )
+
+    def detect_codebase_directory(self):
+        main_module = sys.modules.get('__main__')
+        entry_file = getattr(main_module, '__file__', None)
+        if entry_file is None:
+            raise RuntimeError('Sweeper: Could not detect codebase directory, "__main__" has no file!')
+        return dirname(abspath(entry_file))
+
     # Table: Runs
 
     def create_runs_table(self):
         self.cur.execute(
             f'CREATE TABLE '
-            f'runs(run_id INTEGER PRIMARY KEY, run_ident TEXT, started_at TEXT, finished_at TEXT, status TEXT, result_id INT)'
+            f'runs(run_id INTEGER PRIMARY KEY, run_ident TEXT, started_at TEXT, finished_at TEXT, status TEXT, result_id INT, output_folder TEXT)'
         )
 
     def is_already_running_or_done(self, run):
@@ -96,6 +122,23 @@ class SweepDatabase:
         exists = res.fetchone() is not None
         self.update_lastseen()
         return exists
+
+    def get_run_status(self, run):
+        """Returns the DB's current record for this run's ident (run_id, status,
+        output_folder), or None if this run has never been attempted before."""
+        res = self.cur.execute(
+            f'SELECT run_id, status, output_folder FROM runs '
+            f'WHERE run_ident="{run.ident}"'
+        )
+        row = res.fetchone()
+        self.update_lastseen()
+        if row is None:
+            return None
+        return {
+            'run_id': row[0],
+            'status': row[1],
+            'output_folder': row[2],
+        }
 
     def mark_done(self, run):
         # Check that the run has not been cleaned already
@@ -118,15 +161,38 @@ class SweepDatabase:
         self.update_lastseen()
         self.cleanup()
 
-    def mark_running(self, run):
+    def mark_running(self, run, output_folder):
+        """Marks a run as running. If this run's ident has no prior record, a
+        new row is inserted with the given output_folder. If it does have a
+        prior record (i.e. it is a run being resumed or restarted from the
+        ERROR state, or force-resumed from a stale RUNNING state - see
+        Sweeper.force_resume_of_running_jobs), the existing row is updated
+        in place instead, so run_id is preserved; output_folder is
+        (re)written either way, since a restarted (as opposed to resumed)
+        run may use a fresh one."""
+        existing = self.get_run_status(run)
         timestamp = self.timestamp()
-        self.cur.execute(
-            f'INSERT INTO '
-            f'runs(run_ident, started_at, finished_at, status, result_id)'
-            f'VALUES("{run.ident}", "{timestamp}", "None", "RUNNING", -1)'
-        )
-        self.con.commit()
-        run.run_id = self.cur.lastrowid
+
+        if existing is None:
+            self.cur.execute(
+                f'INSERT INTO '
+                f'runs(run_ident, started_at, finished_at, status, result_id, output_folder)'
+                f'VALUES("{run.ident}", "{timestamp}", "None", "RUNNING", -1, "{output_folder}")'
+            )
+            self.con.commit()
+            run.run_id = self.cur.lastrowid
+        else:
+            assert existing['status'] in ('ERROR', 'RUNNING'), (
+                f'Sweeper: Tried to mark {run.ident} as running, but it is already '
+                f'in status "{existing["status"]}"! This should have been caught earlier.'
+            )
+            self.cur.execute(
+                f'UPDATE runs '
+                f'SET status="RUNNING", started_at="{timestamp}", output_folder="{output_folder}" '
+                f'WHERE run_id={existing["run_id"]}'
+            )
+            self.con.commit()
+            run.run_id = existing['run_id']
 
         self.update_lastseen()
         self.cleanup()
