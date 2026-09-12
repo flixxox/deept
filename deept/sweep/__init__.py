@@ -59,7 +59,6 @@ def parse_multi_sweep_config(config):
         'cleanup_after': None,
         'remove_from_hash': None,
         'restart_error_runs': None,
-        'force_resume_of_running_jobs': None,
     }
 
     if do_multi_sweep:
@@ -68,7 +67,6 @@ def parse_multi_sweep_config(config):
         multi_sweep_kwargs['cleanup_after'] = config['sweep_configuration/multi_sweep/cleanup_after', 86]
         multi_sweep_kwargs['remove_from_hash'] = config['sweep_configuration/multi_sweep/remove_from_hash', []]
         multi_sweep_kwargs['restart_error_runs'] = config['sweep_configuration/multi_sweep/restart_error_runs', False]
-        multi_sweep_kwargs['force_resume_of_running_jobs'] = config['force_resume_of_running_jobs', False]
 
     return do_multi_sweep, multi_sweep_kwargs
 

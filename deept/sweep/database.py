@@ -45,12 +45,12 @@ class SweepDatabase:
             'resume_training_from',
             'use_wandb',
             'remove_from_hash',
-            'number_of_gpus'
+            'number_of_gpus',
             'early_abort',
             'checkpoints_till_abort',
             'early_abort_threshold',
             'checkpoint_strategy',
-            'force_resume_of_running_jobs'
+            'codebase_directory'
         ] + self.remove_from_hash
 
         sweep_folder = join(self.sweep_folder_root, self.sweep_name)
@@ -69,7 +69,8 @@ class SweepDatabase:
 
         config_file = join(sweep_folder, 'config.yaml')
         if self.newly_created:
-            self.normal_config.dump_to_file(config_file, exclude=exclude)
+            self.normal_config['remove_from_hash'] = sorted(set(exclude))
+            self.normal_config.dump_to_file(config_file)
             my_print(f'Sweeper: Created new sweep db in {sweep_folder}!')
         
         self.sweep_folder = sweep_folder
@@ -165,11 +166,9 @@ class SweepDatabase:
         """Marks a run as running. If this run's ident has no prior record, a
         new row is inserted with the given output_folder. If it does have a
         prior record (i.e. it is a run being resumed or restarted from the
-        ERROR state, or force-resumed from a stale RUNNING state - see
-        Sweeper.force_resume_of_running_jobs), the existing row is updated
-        in place instead, so run_id is preserved; output_folder is
-        (re)written either way, since a restarted (as opposed to resumed)
-        run may use a fresh one."""
+        ERROR state), the existing row is updated in place instead, so
+        run_id is preserved; output_folder is (re)written either way, since
+        a restarted (as opposed to resumed) run may use a fresh one."""
         existing = self.get_run_status(run)
         timestamp = self.timestamp()
 
@@ -182,7 +181,7 @@ class SweepDatabase:
             self.con.commit()
             run.run_id = self.cur.lastrowid
         else:
-            assert existing['status'] in ('ERROR', 'RUNNING'), (
+            assert existing['status'] == 'ERROR', (
                 f'Sweeper: Tried to mark {run.ident} as running, but it is already '
                 f'in status "{existing["status"]}"! This should have been caught earlier.'
             )
@@ -240,7 +239,7 @@ class SweepDatabase:
 
         sql_string = f'CREATE TABLE run_results(result_id INTEGER PRIMARY KEY, run_id INTEGER'
         for k in keys:
-            sql_string += f', {k} REAL'
+            sql_string += f', "{k}" REAL'
         sql_string += ')'
 
         self.cur.execute(sql_string)
@@ -250,7 +249,7 @@ class SweepDatabase:
 
         key_str = 'run_results(run_id'
         for k in keys:
-            key_str += f', {k}'
+            key_str += f', "{k}"'
         key_str += ')'
 
         value_str = f'VALUES({run.run_id}'

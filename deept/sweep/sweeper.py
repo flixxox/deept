@@ -101,9 +101,6 @@ class Sweeper:
                 return 'run', fresh_output_folder
             else:
                 return 'resume', status['output_folder']
-        elif status['status'] == 'RUNNING' and self.force_resume_of_running_jobs:
-            my_print(f'Sweeper: {run.ident} is marked RUNNING, but "force_resume_of_running_jobs" is set! Resuming anyway!')
-            return 'resume', status['output_folder']
         else:
             my_print(f'Skip {run.ident}! Already tried.')
             return 'skip', None
